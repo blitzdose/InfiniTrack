@@ -5,20 +5,24 @@ import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.html.UnorderedList;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.map.Map;
 import com.vaadin.flow.component.map.configuration.Coordinate;
 import com.vaadin.flow.component.map.configuration.Feature;
 import com.vaadin.flow.component.map.configuration.View;
 import com.vaadin.flow.component.map.configuration.feature.MarkerFeature;
 import com.vaadin.flow.component.map.configuration.layer.FeatureLayer;
+import com.vaadin.flow.component.map.configuration.style.Style;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.shared.Tooltip;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
+import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.theme.lumo.LumoUtility.AlignItems;
 import com.vaadin.flow.theme.lumo.LumoUtility.BoxSizing;
 import com.vaadin.flow.theme.lumo.LumoUtility.Display;
@@ -187,7 +191,7 @@ public class MapView extends HorizontalLayout {
     private void centerMapOn(Location location) {
         View view = map.getView();
         view.setCenter(new Coordinate(location.getLongitude(), location.getLatitude()));
-        view.setZoom(14);
+        //view.setZoom(14);
     }
 
     private void scrollToCard(Location location) {
@@ -256,8 +260,45 @@ public class MapView extends HorizontalLayout {
             featureLayer.removeFeature(f);
         }
 
+
+        String[] colors = new String[]{
+                "#e27114",
+                "#84000f",
+                "#057e84",
+                "#034582",
+                "#932a04",
+                "#910410",
+                "#619b0a",
+                "#d66413",
+                "#c40eed",
+                "#06a07c",
+                "#962f03",
+                "#0b1e7f",
+                "#290a84",
+                "#1b7a03",
+                "#047c76",
+                "#962706",
+                "#026b11",
+                "#e0e011",
+                "#130060"
+        };
+
+        final int[] count = {0};
+
+
         this.filteredLocations.forEach((location) -> {
             MarkerFeature feature = new MarkerFeature(new Coordinate(location.getLongitude(), location.getLatitude()));
+
+            StreamResource streamResource = new StreamResource("location-dot-solid.svg",
+                    () -> getClass().getResourceAsStream(
+                            "/META-INF/resources/images/location-dot-solid.svg"));
+            com.vaadin.flow.component.map.configuration.style.Icon.Options markerIconOptions = new com.vaadin.flow.component.map.configuration.style.Icon.Options();
+            markerIconOptions.setImg(streamResource);
+            markerIconOptions.setColor(colors[count[0]++%19]);
+            markerIconOptions.setScale(0.25f);
+            com.vaadin.flow.component.map.configuration.style.Icon markerIcon = new com.vaadin.flow.component.map.configuration.style.Icon(markerIconOptions);
+            feature.setIcon(markerIcon);
+
             featureToLocation.put(feature, location);
             featureLayer.addFeature(feature);
         });

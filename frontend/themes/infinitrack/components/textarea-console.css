@@ -1,0 +1,4 @@
+:host([readonly]) [part='input-field'] {
+    background: #222222;
+    color: hsla(214, 96%, 96%, 0.9);;
+}

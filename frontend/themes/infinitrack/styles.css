@@ -1,9 +1,13 @@
 @import url('./main-layout.css');
 @import url('./views/map-view.css');
 @import url('./views/devices-view.css');
-@import url('line-awesome/dist/line-awesome/css/line-awesome.min.css');    html {
-      --lumo-border-radius-s: calc(var(--lumo-size-m) / 6);
-      --lumo-border-radius-m: calc(var(--lumo-size-m) / 2);
-      --lumo-border-radius-l: var(--lumo-size-m);
+@import url('line-awesome/dist/line-awesome/css/line-awesome.min.css');
+/*html {
+    --lumo-border-radius-s: calc(var(--lumo-size-m) / 6);
+    --lumo-border-radius-m: calc(var(--lumo-size-m) / 2);
+    --lumo-border-radius-l: var(--lumo-size-m);
+
+}*/
+    [theme~="dark"] {
 
     }
