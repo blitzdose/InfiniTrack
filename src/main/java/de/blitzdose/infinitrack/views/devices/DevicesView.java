@@ -7,6 +7,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.dependency.JsModule;
+import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
@@ -44,6 +46,8 @@ import java.util.Locale;
 
 @PageTitle("Devices")
 @Route(value = "devices", layout = MainLayout.class)
+@NpmPackage(value = "@datadobi/color-picker", version = "2.0.0-beta.4-datadobi8")
+@JsModule("@datadobi/color-picker/color-picker.js")
 public class DevicesView extends Div {
 
     private GridPro<Device> grid;
