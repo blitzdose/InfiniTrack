@@ -7,7 +7,6 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 import java.nio.charset.Charset;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,6 +20,8 @@ public class SerialCommunication {
 
     private String lastMsg = "";
     private String fullConsole = "";
+
+    public final static String MSG_GET_READY = "get_ready";
 
     public SerialCommunication() {
 
@@ -52,6 +53,13 @@ public class SerialCommunication {
                                 fullConsole = String.format("%s%s", fullConsole, line);
                                 dataListener.dataReceived(line, fullConsole);
                                 lastMsg = lastMsg.substring(newLineIndex+1);
+
+                                Message message = SerialParser.parseMessage(line);
+                                if (message != null &&
+                                        message.getType().equals(Message.TYPE_STATUS)
+                                        && message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
+                                    connectListener.forEach(ConnectListener::connect);
+                                }
                             }
                         } while (newLineIndex != -1);
                     }
@@ -72,7 +80,7 @@ public class SerialCommunication {
 
     public void openConnection() {
         if (serialPort.openPort()) {
-            connectListener.forEach(ConnectListener::connect);
+            sendMessage(MSG_GET_READY);
         }
     }
 
@@ -99,6 +107,7 @@ public class SerialCommunication {
     }
 
     public boolean sendMessage(String msg) {
+        msg = String.format("%s\r\n", msg);
         byte[] msgBytes = msg.getBytes(Charset.defaultCharset());
         int bytesWritten = serialPort.writeBytes(msgBytes, msgBytes.length);
         return bytesWritten != -1;
