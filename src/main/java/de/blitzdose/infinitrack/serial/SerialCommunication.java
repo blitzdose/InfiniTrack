@@ -22,6 +22,8 @@ public class SerialCommunication {
     private String fullConsole = "";
 
     public final static String MSG_GET_READY = "get_ready";
+    public final static String MSG_START_SCAN = "start_scan";
+    public final static String MSG_STOP_SCAN = "stop_scan";
 
     public SerialCommunication() {
 
@@ -107,6 +109,9 @@ public class SerialCommunication {
     }
 
     public boolean sendMessage(String msg) {
+        if (serialPort == null || !serialPort.isOpen()) {
+            return false;
+        }
         msg = String.format("%s\r\n", msg);
         byte[] msgBytes = msg.getBytes(Charset.defaultCharset());
         int bytesWritten = serialPort.writeBytes(msgBytes, msgBytes.length);

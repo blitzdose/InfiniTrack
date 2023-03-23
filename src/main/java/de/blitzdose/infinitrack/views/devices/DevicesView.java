@@ -1,6 +1,7 @@
 package de.blitzdose.infinitrack.views.devices;
 
 import com.github.juchar.colorpicker.ColorPickerRaw;
+import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.FocusNotifier;
 import com.vaadin.flow.component.button.Button;
@@ -25,6 +26,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.NumberRenderer;
@@ -34,9 +36,12 @@ import com.vaadin.flow.data.selection.SelectionListener;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import de.blitzdose.infinitrack.data.entities.BleDevice;
 import de.blitzdose.infinitrack.data.entities.Device;
+import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.addon.stefan.clipboard.ClientsideClipboard;
 
 import java.text.NumberFormat;
@@ -53,7 +58,7 @@ public class DevicesView extends Div {
     private GridPro<Device> grid;
     GridListDataView<Device> gridListDataView;
 
-    public DevicesView() {
+    public DevicesView(@Autowired SerialCommunication communication) {
         addClassName("devices-view");
         setSizeFull();
         createGrid();
@@ -80,11 +85,47 @@ public class DevicesView extends Div {
             return matchesName || matchesId || matchesStatus;
         });
 
-        Button primaryButton = new Button("Add Device", new Icon(VaadinIcon.PLUS));
-        primaryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        primaryButton.setMinWidth("auto");
+        Button addDeviceBtn = new Button("Add Device", new Icon(VaadinIcon.PLUS));
+        addDeviceBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        addDeviceBtn.setMinWidth("auto");
+        addDeviceBtn.addClickListener(new ComponentEventListener<ClickEvent<Button>>() {
+            @Override
+            public void onComponentEvent(ClickEvent<Button> event) {
+                Dialog addDeviceDialog = new Dialog();
 
-        HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, primaryButton);
+                addDeviceDialog.setHeaderTitle("Add device");
+                addDeviceDialog.setCloseOnEsc(false);
+                addDeviceDialog.setCloseOnOutsideClick(false);
+
+                Button closeButton = new Button(new Icon("lumo", "cross"),
+                        (e) -> {
+                            addDeviceDialog.close();
+                            communication.sendMessage(SerialCommunication.MSG_STOP_SCAN);
+
+                });
+                closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+                addDeviceDialog.getHeader().add(closeButton);
+
+                VerticalLayout dialogLayout = new VerticalLayout();
+
+                ProgressBar progressBar = new ProgressBar();
+                progressBar.setIndeterminate(true);
+
+                Div progressBarLabel = new Div();
+                progressBarLabel.setText("Scanning for devices...");
+                dialogLayout.add(progressBarLabel, progressBar);
+
+                Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
+                scanResults.addColumn(BleDevice::getName);
+                scanResults.addColumn(BleDevice::getAddress);
+                scanResults.addColumn(BleDevice::getRssi);
+
+                addDeviceDialog.add(dialogLayout);
+                addDeviceDialog.open();
+            }
+        });
+
+        HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, addDeviceBtn);
         horizontalLayout.setWidth("100%");
 
         VerticalLayout layout = new VerticalLayout(horizontalLayout, grid);

@@ -7,6 +7,8 @@ import java.util.Locale;
 public class Device {
 
     private int id;
+
+    private String address;
     private String color;
     private String name;
     private double signal;
@@ -75,5 +77,13 @@ public class Device {
 
     public void setColor(String color) {
         this.color = color;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
     }
 }
