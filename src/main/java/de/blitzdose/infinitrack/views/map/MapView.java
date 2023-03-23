@@ -1,42 +1,31 @@
 package de.blitzdose.infinitrack.views.map;
 
+import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.PollEvent;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dependency.CssImport;
+import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.html.UnorderedList;
 import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.map.Map;
-import com.vaadin.flow.component.map.configuration.Coordinate;
-import com.vaadin.flow.component.map.configuration.Feature;
-import com.vaadin.flow.component.map.configuration.View;
-import com.vaadin.flow.component.map.configuration.feature.MarkerFeature;
-import com.vaadin.flow.component.map.configuration.layer.FeatureLayer;
-import com.vaadin.flow.component.map.configuration.style.Style;
+import com.vaadin.flow.component.map.configuration.layer.TileLayer;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.shared.Tooltip;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
 import com.vaadin.flow.server.StreamResource;
-import com.vaadin.flow.theme.lumo.LumoUtility.AlignItems;
-import com.vaadin.flow.theme.lumo.LumoUtility.BoxSizing;
-import com.vaadin.flow.theme.lumo.LumoUtility.Display;
-import com.vaadin.flow.theme.lumo.LumoUtility.FlexDirection;
-import com.vaadin.flow.theme.lumo.LumoUtility.FontSize;
-import com.vaadin.flow.theme.lumo.LumoUtility.FontWeight;
-import com.vaadin.flow.theme.lumo.LumoUtility.Gap;
-import com.vaadin.flow.theme.lumo.LumoUtility.Height;
-import com.vaadin.flow.theme.lumo.LumoUtility.ListStyleType;
-import com.vaadin.flow.theme.lumo.LumoUtility.Margin;
-import com.vaadin.flow.theme.lumo.LumoUtility.Padding;
-import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
-import com.vaadin.flow.theme.lumo.LumoUtility.Width;
+import com.vaadin.flow.theme.lumo.LumoUtility.*;
 import de.blitzdose.infinitrack.views.MainLayout;
+import software.xdev.vaadin.maps.leaflet.flow.LMap;
+import software.xdev.vaadin.maps.leaflet.flow.data.*;
+
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,6 +34,8 @@ import java.util.stream.Stream;
 @PageTitle("Map")
 @Route(value = "map", layout = MainLayout.class)
 @RouteAlias(value = "", layout = MainLayout.class)
+@JsModule("leaflet/dist/leaflet.js")
+@CssImport("leaflet/dist/leaflet.css")
 public class MapView extends HorizontalLayout {
 
     public static class Location {
@@ -92,7 +83,7 @@ public class MapView extends HorizontalLayout {
     }
 
     private static Location[] locations = new Location[]{
-            new Location(1, "Netherlands", "Amsterdam", "Van Gogh Museum", 52.358438, 4.881063),
+            new Location(1, "Netherlands", "test", "Van Gogh Museum", 52.358438, 4.881063),
             new Location(2, "Andorra", "Andorra la Vella", "Casa de la Vall", 42.506563, 1.520563),
             new Location(3, "Greece", "Athens", "Acropolis of Athens", 37.971563, 23.725687),
             new Location(4, "Serbia", "Belgrade", "Belgrade Fortress", 44.823062, 20.450688),
@@ -139,22 +130,22 @@ public class MapView extends HorizontalLayout {
             new Location(44, "Poland", "Warsaw", "Old Town Market Square", 52.249688, 21.012188),
             new Location(45, "Croatia", "Zagreb", "Park Maksimir", 45.824313, 16.017688)};
 
-    private Map map = new Map();
+    private LMap lmap = new LMap();
 
     private UnorderedList cardList;
     private java.util.Map<Location, Button> locationToCard = new HashMap<>();
 
     private List<Location> filteredLocations;
-    private java.util.Map<Feature, Location> featureToLocation = new HashMap<>();
+    private java.util.Map<LMarker, Location> markerToLocation = new HashMap<>();
 
     public MapView() {
         addClassName("map-view");
         setSizeFull();
         setPadding(false);
         setSpacing(false);
-        map.getElement().setAttribute("theme", "borderless");
-        map.getElement().setAttribute("class", "map");
-        map.setHeightFull();
+        //map.getElement().setAttribute("theme", "borderless");
+        //map.getElement().setAttribute("class", "map");
+        //map.setHeightFull();
 
         VerticalLayout sidebar = new VerticalLayout();
         sidebar.setSpacing(false);
@@ -182,16 +173,30 @@ public class MapView extends HorizontalLayout {
         sidebar.add(searchField, scroller);
         scroller.setContent(cardList);
 
-        add(map, sidebar);
-
         configureMap();
+
+        add(lmap, sidebar);
+
         updateCardList();
+
+        UI.getCurrent().setPollInterval(1000);
+        UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
+            @Override
+            public void onComponentEvent(PollEvent pollEvent) {
+                LComponent lComponent1 =  lmap.getComponents().stream().filter(lComponent -> lComponent instanceof LMarker).filter(lComponent -> ((LMarker) lComponent).getTag().equals("test")).findFirst().get();
+                if (lComponent1 instanceof LMarker lMarker) {
+                    lmap.removeLComponents(lMarker);
+                    LMarkerGeometry geometry = lMarker.getGeometry();
+                    LMarkerGeometry newGeometry = new LMarkerGeometry(geometry.getType(), lMarker.getLat(), lMarker.getLon() + 0.001);
+                    lMarker.setGeometry(newGeometry);
+                    lmap.addLComponents(lMarker);
+                }
+            }
+        });
     }
 
     private void centerMapOn(Location location) {
-        View view = map.getView();
-        view.setCenter(new Coordinate(location.getLongitude(), location.getLatitude()));
-        //view.setZoom(14);
+        lmap.setCenter(new LCenter(location.getLatitude(), location.getLongitude(), 14));
     }
 
     private void scrollToCard(Location location) {
@@ -199,23 +204,16 @@ public class MapView extends HorizontalLayout {
     }
 
     private void centerMapDefault() {
-        View view = new View();
-        view.setCenter(new Coordinate(7, 55));
-        view.setZoom(4.4f);
-        map.setView(view);
+        lmap.setCenter(new LCenter(7, 55, 4));
     }
 
     private void configureMap() {
+        lmap = new LMap(49.675126, 12.160733, 17);
+        lmap.setTileLayer(LTileLayer.DEFAULT_OPENSTREETMAP_TILE);
+
+        lmap.setSizeFull();
 
         this.centerMapDefault();
-
-        this.map.addFeatureClickListener(e -> {
-            Feature feature = e.getFeature();
-            Location location = featureToLocation.get(feature);
-            this.centerMapOn(location);
-            this.scrollToCard(location);
-        });
-
         this.updateFilter("");
     }
 
@@ -247,17 +245,15 @@ public class MapView extends HorizontalLayout {
     }
 
     private void updateFilter(String filter) {
-        featureToLocation.clear();
+        markerToLocation.clear();
         filteredLocations = Stream.of(locations)
                 .filter(location -> location.place.toLowerCase().contains(filter)
                         || location.city.toLowerCase().contains(filter)
                         || location.country.toLowerCase().contains(filter))
                 .collect(Collectors.toList());
 
-        FeatureLayer featureLayer = this.map.getFeatureLayer();
-
-        for (Feature f : featureLayer.getFeatures().toArray(Feature[]::new)) {
-            featureLayer.removeFeature(f);
+        for (LMarker m : lmap.getComponents().stream().filter(lComponent -> lComponent instanceof LMarker).toArray(LMarker[]::new)) {
+            lmap.removeLComponents(m);
         }
 
 
@@ -287,20 +283,23 @@ public class MapView extends HorizontalLayout {
 
 
         this.filteredLocations.forEach((location) -> {
-            MarkerFeature feature = new MarkerFeature(new Coordinate(location.getLongitude(), location.getLatitude()));
+            LMarker lMarker = new LMarker(location.getLatitude(), location.getLongitude());
+            lMarker.setIcon(new LIcon());
+            lMarker.setPopup("Hallo");
+            lMarker.setTag(location.city);
 
-            StreamResource streamResource = new StreamResource("location-dot-solid.svg",
-                    () -> getClass().getResourceAsStream(
-                            "/META-INF/resources/images/location-dot-solid.svg"));
-            com.vaadin.flow.component.map.configuration.style.Icon.Options markerIconOptions = new com.vaadin.flow.component.map.configuration.style.Icon.Options();
-            markerIconOptions.setImg(streamResource);
-            markerIconOptions.setColor(colors[count[0]++%19]);
-            markerIconOptions.setScale(0.25f);
-            com.vaadin.flow.component.map.configuration.style.Icon markerIcon = new com.vaadin.flow.component.map.configuration.style.Icon(markerIconOptions);
-            feature.setIcon(markerIcon);
+            //StreamResource streamResource = new StreamResource("location-dot-solid.svg",
+            //        () -> getClass().getResourceAsStream(
+            //                "/META-INF/resources/images/location-dot-solid.svg"));
+            //com.vaadin.flow.component.map.configuration.style.Icon.Options markerIconOptions = new com.vaadin.flow.component.map.configuration.style.Icon.Options();
+            //markerIconOptions.setImg(streamResource);
+            //markerIconOptions.setColor(colors[count[0]++%19]);
+            //markerIconOptions.setScale(0.25f);
+            //com.vaadin.flow.component.map.configuration.style.Icon markerIcon = new com.vaadin.flow.component.map.configuration.style.Icon(markerIconOptions);
+            //feature.setIcon(markerIcon);
 
-            featureToLocation.put(feature, location);
-            featureLayer.addFeature(feature);
+            markerToLocation.put(lMarker, location);
+            lmap.addLComponents(lMarker);
         });
         updateCardList();
     }
