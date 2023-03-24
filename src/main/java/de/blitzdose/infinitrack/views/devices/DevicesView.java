@@ -1,9 +1,7 @@
 package de.blitzdose.infinitrack.views.devices;
 
 import com.github.juchar.colorpicker.ColorPickerRaw;
-import com.vaadin.flow.component.ClickEvent;
-import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.FocusNotifier;
+import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -41,10 +39,12 @@ import de.blitzdose.infinitrack.data.entities.Device;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.addon.stefan.clipboard.ClientsideClipboard;
 
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -115,13 +115,51 @@ public class DevicesView extends Div {
                 progressBarLabel.setText("Scanning for devices...");
                 dialogLayout.add(progressBarLabel, progressBar);
 
-                Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
-                scanResults.addColumn(BleDevice::getName);
-                scanResults.addColumn(BleDevice::getAddress);
-                scanResults.addColumn(BleDevice::getRssi);
+                ArrayList<BleDevice> devices = new ArrayList<>();
+                devices.add(new BleDevice("AF:23:53:DF:2F:F3", "LoRa Module", -35));
+                devices.add(new BleDevice("AF:23:53:DF:F2:E2", "LoRa Module", -41));
+                devices.add(new BleDevice("AF:23:53:DF:B8:D1", "LoRa Module", -75));
+                devices.add(new BleDevice("AF:23:53:DF:8C:A9", "LoRa Module", -23));
 
-                addDeviceDialog.add(dialogLayout);
+                Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
+                scanResults.addColumn(BleDevice::getName).setHeader("Name").setAutoWidth(true);
+                scanResults.addColumn(BleDevice::getAddress).setHeader("Address").setAutoWidth(true);
+                scanResults.addColumn(BleDevice::getRssi).setHeader("Signal (RSSI)").setAutoWidth(true).setFlexGrow(0);
+
+                scanResults.setItems(devices);
+
+                dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
+                dialogLayout.getStyle().set("min-width", "38rem").set("max-width", "100%");
+                dialogLayout.setSpacing(false);
+                dialogLayout.setPadding(false);
+
+                addDeviceDialog.add(dialogLayout, scanResults);
                 addDeviceDialog.open();
+
+                communication.setOnDataListener(new SerialCommunication.DataListener() {
+                    @Override
+                    public void dataReceived(String msg, String console) {
+                        //TODO Anpassen an Nachrichten vom ESP32
+                        JSONObject jsonObject = new JSONObject(msg);
+                        if (jsonObject.getString("type").equals(SerialCommunication.TYPE_SCAN_RESULT)) {
+                            JSONObject data = jsonObject.getJSONObject("data");
+                            BleDevice bleDevice = new BleDevice(data.getString("address"), data.getString("name"), data.getInt("rssi"));
+                            bleDevice.setPayload(data.getJSONObject("payload"));
+                            devices.remove(bleDevice);
+                            devices.add(bleDevice);
+                        } else if (jsonObject.getString("type").equals(SerialCommunication.TYPE_SCAN_STOPPED)) {
+                            progressBar.setVisible(false);
+                            progressBarLabel.setVisible(false);
+                        }
+                    }
+                });
+                UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
+                    @Override
+                    public void onComponentEvent(PollEvent pollEvent) {
+                        scanResults.setItems(devices);
+                    }
+                });
+                UI.getCurrent().setPollInterval(1000);
             }
         });
 

@@ -8,6 +8,12 @@ public class BleDevice {
     private int rssi;
     private JSONObject payload;
 
+    public BleDevice(String address, String name, int rssi) {
+        this.address = address;
+        this.name = name;
+        this.rssi = rssi;
+    }
+
     public String getAddress() {
         return address;
     }
@@ -38,5 +44,18 @@ public class BleDevice {
 
     public void setPayload(JSONObject payload) {
         this.payload = payload;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getAddress().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof BleDevice device) {
+            return device.getAddress().equals(this.getAddress());
+        }
+        return false;
     }
 }

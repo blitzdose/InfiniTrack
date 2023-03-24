@@ -24,6 +24,8 @@ public class SerialCommunication {
     public final static String MSG_GET_READY = "get_ready";
     public final static String MSG_START_SCAN = "start_scan";
     public final static String MSG_STOP_SCAN = "stop_scan";
+    public final static String TYPE_SCAN_RESULT = "scan_result";
+    public final static String TYPE_SCAN_STOPPED = "scan_stopped";
 
     public SerialCommunication() {
 
