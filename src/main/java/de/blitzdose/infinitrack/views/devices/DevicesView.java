@@ -13,6 +13,7 @@ import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.SelectionMode;
 import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.dataview.GridListDataView;
 import com.vaadin.flow.component.gridpro.GridPro;
 import com.vaadin.flow.component.html.Div;
@@ -21,6 +22,7 @@ import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.map.configuration.Coordinate;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -41,13 +43,14 @@ import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.vaadin.addon.stefan.clipboard.ClientsideClipboard;
+import org.vaadin.olli.ClipboardHelper;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 @PageTitle("Devices")
 @Route(value = "devices", layout = MainLayout.class)
@@ -91,6 +94,15 @@ public class DevicesView extends Div {
         addDeviceBtn.addClickListener(new ComponentEventListener<ClickEvent<Button>>() {
             @Override
             public void onComponentEvent(ClickEvent<Button> event) {
+                if (!communication.isOpen()) {
+                    Notification notification = new Notification();
+                    notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    notification.setDuration(5000);
+                    notification.setText("Not connected to base station");
+                    notification.open();
+                    return;
+                }
+
                 Dialog addDeviceDialog = new Dialog();
 
                 addDeviceDialog.setHeaderTitle("Add device");
@@ -110,23 +122,42 @@ public class DevicesView extends Div {
 
                 ProgressBar progressBar = new ProgressBar();
                 progressBar.setIndeterminate(true);
+                progressBar.setVisible(false);
 
                 Div progressBarLabel = new Div();
                 progressBarLabel.setText("Scanning for devices...");
+                progressBarLabel.setVisible(false);
+
                 dialogLayout.add(progressBarLabel, progressBar);
 
                 ArrayList<BleDevice> devices = new ArrayList<>();
-                devices.add(new BleDevice("AF:23:53:DF:2F:F3", "LoRa Module", -35));
-                devices.add(new BleDevice("AF:23:53:DF:F2:E2", "LoRa Module", -41));
-                devices.add(new BleDevice("AF:23:53:DF:B8:D1", "LoRa Module", -75));
-                devices.add(new BleDevice("AF:23:53:DF:8C:A9", "LoRa Module", -23));
 
                 Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
                 scanResults.addColumn(BleDevice::getName).setHeader("Name").setAutoWidth(true);
-                scanResults.addColumn(BleDevice::getAddress).setHeader("Address").setAutoWidth(true);
+                scanResults.addColumn(BleDevice::getAddressFormatted).setHeader("Address").setAutoWidth(true);
                 scanResults.addColumn(BleDevice::getRssi).setHeader("Signal (RSSI)").setAutoWidth(true).setFlexGrow(0);
 
                 scanResults.setItems(devices);
+
+                scanResults.addItemClickListener(new ComponentEventListener<ItemClickEvent<BleDevice>>() {
+                    @Override
+                    public void onComponentEvent(ItemClickEvent<BleDevice> event) {
+                        BleDevice bleDevice = event.getItem();
+                        communication.sendMessage(SerialCommunication.MSG_STOP_SCAN);
+                        communication.setOnDataListener(null);
+                        communication.sendMessage(String.format(SerialCommunication.MSG_BLE_CONNECT, bleDevice.getAddress()));
+                        addDeviceDialog.close();
+
+                        Dialog waitDialog = new Dialog();
+                        ProgressBar connectingProgressBar = new ProgressBar();
+                        connectingProgressBar.setIndeterminate(true);
+                        waitDialog.setHeaderTitle("Please wait...");
+                        waitDialog.add(connectingProgressBar);
+                        waitDialog.setCloseOnOutsideClick(false);
+                        waitDialog.setCloseOnEsc(false);
+                        waitDialog.open();
+                    }
+                });
 
                 dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
                 dialogLayout.getStyle().set("min-width", "38rem").set("max-width", "100%");
@@ -134,32 +165,74 @@ public class DevicesView extends Div {
                 dialogLayout.setPadding(false);
 
                 addDeviceDialog.add(dialogLayout, scanResults);
+
+                Button repeatScanButton = new Button("Repeat scan", click -> {
+                    devices.clear();
+                    scanResults.setItems(devices);
+                    communication.sendMessage(SerialCommunication.MSG_START_SCAN);
+                });
+                repeatScanButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                repeatScanButton.getStyle().set("margin-right", "auto");
+                repeatScanButton.setEnabled(false);
+                addDeviceDialog.getFooter().add(repeatScanButton);
+
                 addDeviceDialog.open();
+
+                UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
+                    @Override
+                    public void onComponentEvent(PollEvent pollEvent) {
+                        List<BleDevice> filteredBleDevices = devices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
+                                        bleDevice.getPayload().get("255").equals(SerialCommunication.BLE_SIGNATURE)).toList();
+                        scanResults.setItems(filteredBleDevices);
+                    }
+                });
+                UI.getCurrent().setPollInterval(1000);
 
                 communication.setOnDataListener(new SerialCommunication.DataListener() {
                     @Override
                     public void dataReceived(String msg, String console) {
-                        //TODO Anpassen an Nachrichten vom ESP32
                         JSONObject jsonObject = new JSONObject(msg);
                         if (jsonObject.getString("type").equals(SerialCommunication.TYPE_SCAN_RESULT)) {
-                            JSONObject data = jsonObject.getJSONObject("data");
-                            BleDevice bleDevice = new BleDevice(data.getString("address"), data.getString("name"), data.getInt("rssi"));
-                            bleDevice.setPayload(data.getJSONObject("payload"));
+                            JSONObject data = jsonObject.getJSONObject("msg");
+                            String address = data.getString("addr");
+                            int rssi = data.getInt("rssi");
+                            JSONObject payload = data.getJSONObject("payload");
+
+                            BleDevice bleDevice = new BleDevice(address, rssi);
+                            bleDevice.setPayload(payload);
+                            if (payload.keySet().contains("9")) {
+                                bleDevice.setNameHEX(payload.getString("9"));
+                            }
+
+                            devices.stream()
+                                    .filter(bleDevice1 -> bleDevice1.equals(bleDevice))
+                                    .forEach(bleDevice::mergeFrom);
+
                             devices.remove(bleDevice);
                             devices.add(bleDevice);
-                        } else if (jsonObject.getString("type").equals(SerialCommunication.TYPE_SCAN_STOPPED)) {
-                            progressBar.setVisible(false);
-                            progressBarLabel.setVisible(false);
+                        } else if (jsonObject.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
+                            if (jsonObject.getString("msg").equals(SerialCommunication.MSG_SCAN_STOPPED)) {
+                                DevicesView.this.getUI().ifPresent(ui -> {
+                                    ui.access(() -> {
+                                        progressBar.setVisible(false);
+                                        progressBarLabel.setVisible(false);
+                                        repeatScanButton.setEnabled(true);
+                                    });
+                                });
+                            } else if (jsonObject.getString("msg").equals(SerialCommunication.MSG_SCAN_STARTED)) {
+                                DevicesView.this.getUI().ifPresent(ui -> {
+                                    ui.access(() -> {
+                                        progressBar.setVisible(true);
+                                        progressBarLabel.setVisible(true);
+                                        repeatScanButton.setEnabled(false);
+                                    });
+                                });
+                            }
                         }
                     }
                 });
-                UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
-                    @Override
-                    public void onComponentEvent(PollEvent pollEvent) {
-                        scanResults.setItems(devices);
-                    }
-                });
-                UI.getCurrent().setPollInterval(1000);
+
+                communication.sendMessage(SerialCommunication.MSG_START_SCAN);
             }
         });
 
@@ -266,16 +339,24 @@ public class DevicesView extends Div {
         TextField lastLocationTextField = new TextField("Last known location");
         lastLocationTextField.setReadOnly(true);
         lastLocationTextField.setValue(device.getCoordinate() != null ? device.getCoordinateAsString() : "Unknown");
+        lastLocationTextField.setWidthFull();
         Span copyIcon = new Span();
         copyIcon.setClassName("la la-copy");
-        lastLocationTextField.setSuffixComponent(copyIcon);
-        lastLocationTextField.getElement().addEventListener("click", clickEvent -> {
-            ClientsideClipboard.writeToClipboard(lastLocationTextField.getValue(), successful ->
-                    Notification.show(successful ? "Copied to clipboard" : "Could not write to clipboard")
-            );
-
+        Button button = new Button("Copy to clipboard", copyIcon);
+        ClipboardHelper clipboardHelper = new ClipboardHelper(lastLocationTextField.getValue(), button);
+        clipboardHelper.getElement().addEventListener("click", event -> {
+            Notification.show("Copied to clipboard");
         });
-        dialogLayout.add(lastLocationTextField);
+        HorizontalLayout horizontalLayout = new HorizontalLayout(lastLocationTextField, clipboardHelper);
+        horizontalLayout.setAlignItems(FlexComponent.Alignment.END);
+        dialogLayout.add(horizontalLayout);
+        //lastLocationTextField.getElement().addEventListener("click", clickEvent -> {
+        //    ClientsideClipboard.writeToClipboard(lastLocationTextField.getValue(), successful ->
+        //            Notification.show(successful ? "Copied to clipboard" : "Could not write to clipboard")
+        //    );
+//
+        //});
+        //dialogLayout.add(lastLocationTextField);
 
         dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
         dialogLayout.getStyle().set("min-width", "28rem").set("max-width", "100%");

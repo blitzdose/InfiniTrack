@@ -2,6 +2,7 @@ package de.blitzdose.infinitrack.serial;
 
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortDataListener;
+import com.fazecast.jSerialComm.SerialPortDataListenerWithExceptions;
 import com.fazecast.jSerialComm.SerialPortEvent;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import org.springframework.web.context.annotation.ApplicationScope;
@@ -9,6 +10,7 @@ import org.springframework.web.context.annotation.ApplicationScope;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @ApplicationScope
 @SpringComponent
@@ -21,11 +23,16 @@ public class SerialCommunication {
     private String lastMsg = "";
     private String fullConsole = "";
 
+    public final static String TYPE_STATUS = "status";
     public final static String MSG_GET_READY = "get_ready";
-    public final static String MSG_START_SCAN = "start_scan";
-    public final static String MSG_STOP_SCAN = "stop_scan";
-    public final static String TYPE_SCAN_RESULT = "scan_result";
-    public final static String TYPE_SCAN_STOPPED = "scan_stopped";
+    public final static String MSG_START_SCAN = "ble_start_scan";
+    public final static String MSG_STOP_SCAN = "ble_stop_scan";
+    public final static String TYPE_SCAN_RESULT = "ble_scan_result";
+    public final static String MSG_SCAN_STARTED = "ble_scan_started";
+    public final static String MSG_SCAN_STOPPED = "ble_scan_stopped";
+    public static final String MSG_BLE_CONNECT = "ble_connect:%s";
+
+    public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
     public SerialCommunication() {
 
@@ -34,7 +41,12 @@ public class SerialCommunication {
     public void initialize(SerialPort serialPort, int baudRate) {
         this.serialPort = serialPort;
         this.serialPort.setBaudRate(baudRate);
-        this.serialPort.addDataListener(new SerialPortDataListener() {
+        this.serialPort.addDataListener(new SerialPortDataListenerWithExceptions() {
+            @Override
+            public void catchException(Exception e) {
+                e.printStackTrace();
+            }
+
             @Override
             public int getListeningEvents() {
                 return SerialPort.LISTENING_EVENT_DATA_AVAILABLE | SerialPort.LISTENING_EVENT_PORT_DISCONNECTED;
@@ -43,30 +55,30 @@ public class SerialCommunication {
             @Override
             public void serialEvent(SerialPortEvent serialPortEvent) {
                 if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
-                    if (dataListener != null) {
-                        byte[] buffer = new byte[SerialCommunication.this.serialPort.bytesAvailable()];
-                        SerialCommunication.this.serialPort.readBytes(buffer, buffer.length);
-                        lastMsg += new String(buffer);
+                    byte[] buffer = new byte[SerialCommunication.this.serialPort.bytesAvailable()];
+                    SerialCommunication.this.serialPort.readBytes(buffer, buffer.length);
+                    lastMsg += new String(buffer);
 
-                        int newLineIndex;
-                        do {
-                            newLineIndex = lastMsg.indexOf("\r\n");
+                    int newLineIndex;
+                    do {
+                        newLineIndex = lastMsg.indexOf("\r\n");
 
-                            if (newLineIndex != -1) {
-                                String line = lastMsg.substring(0, newLineIndex);
-                                fullConsole = String.format("%s%s", fullConsole, line);
+                        if (newLineIndex != -1) {
+                            String line = lastMsg.substring(0, newLineIndex);
+                            fullConsole = String.format("%s%s", fullConsole, line);
+                            if (dataListener != null) {
                                 dataListener.dataReceived(line, fullConsole);
-                                lastMsg = lastMsg.substring(newLineIndex+1);
-
-                                Message message = SerialParser.parseMessage(line);
-                                if (message != null &&
-                                        message.getType().equals(Message.TYPE_STATUS)
-                                        && message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
-                                    connectListener.forEach(ConnectListener::connect);
-                                }
                             }
-                        } while (newLineIndex != -1);
-                    }
+                            lastMsg = lastMsg.substring(newLineIndex+1);
+
+                            Message message = SerialParser.parseMessage(line);
+                            if (message != null &&
+                                    message.getType().equals(Message.TYPE_STATUS)
+                                    && message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
+                                connectListener.forEach(ConnectListener::connect);
+                            }
+                        }
+                    } while (newLineIndex != -1);
                 } else if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_PORT_DISCONNECTED) {
                     closeConnection();
                 }

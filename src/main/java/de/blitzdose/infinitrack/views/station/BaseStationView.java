@@ -90,7 +90,8 @@ public class BaseStationView extends Div {
         verticalLayout.add(horizontalLayout);
 
         textArea.setWidthFull();
-        textArea.setHeightFull();
+        textArea.setMinHeight("50%");
+        textArea.getStyle().set("flex-grow", "1");
         textArea.setReadOnly(true);
 
         if (communication.isInitialized()) {
