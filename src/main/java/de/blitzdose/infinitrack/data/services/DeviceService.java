@@ -1,12 +1,11 @@
 package de.blitzdose.infinitrack.data.services;
 
-import de.blitzdose.infinitrack.data.entities.Device;
+import de.blitzdose.infinitrack.data.entities.device.Device;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 

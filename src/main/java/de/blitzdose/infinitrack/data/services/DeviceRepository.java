@@ -1,6 +1,6 @@
 package de.blitzdose.infinitrack.data.services;
 
-import de.blitzdose.infinitrack.data.entities.Device;
+import de.blitzdose.infinitrack.data.entities.device.Device;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 

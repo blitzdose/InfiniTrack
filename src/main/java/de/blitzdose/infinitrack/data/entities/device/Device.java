@@ -1,12 +1,16 @@
-package de.blitzdose.infinitrack.data.entities;
+package de.blitzdose.infinitrack.data.entities.device;
 
 import com.vaadin.flow.component.map.configuration.Coordinate;
+import de.blitzdose.infinitrack.data.entities.AbstractEntity;
 
 import javax.persistence.Entity;
+import javax.persistence.OneToMany;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Entity
-public class Device extends AbstractEntity{
+public class Device extends AbstractEntity {
 
     private String address;
     private String color;
@@ -15,6 +19,9 @@ public class Device extends AbstractEntity{
     private String status;
     private String firmwareVersion;
     private Coordinate coordinate;
+
+    @OneToMany
+    private List<Location> locationHistory = new ArrayList<>();
 
     public String getName() {
         return name;
@@ -52,13 +59,6 @@ public class Device extends AbstractEntity{
         return coordinate;
     }
 
-    public String getCoordinateAsString() {
-        double x = coordinate.getX();
-        double y = coordinate.getY();
-
-        return String.format(Locale.ROOT, "%f, %f", y, x);
-    }
-
     public void setCoordinate(Coordinate coordinate) {
         this.coordinate = coordinate;
     }
@@ -77,5 +77,13 @@ public class Device extends AbstractEntity{
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public List<Location> getLocationHistory() {
+        return locationHistory;
+    }
+
+    public void addToLocationHistory(Location location) {
+        locationHistory.add(location);
     }
 }
