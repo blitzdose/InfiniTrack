@@ -2,11 +2,11 @@ package de.blitzdose.infinitrack.data.entities;
 
 import com.vaadin.flow.component.map.configuration.Coordinate;
 
+import javax.persistence.Entity;
 import java.util.Locale;
 
-public class Device {
-
-    private int id;
+@Entity
+public class Device extends AbstractEntity{
 
     private String address;
     private String color;
@@ -15,14 +15,6 @@ public class Device {
     private String status;
     private String firmwareVersion;
     private Coordinate coordinate;
-
-    public int getId() {
-        return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
-    }
 
     public String getName() {
         return name;

@@ -38,6 +38,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.blitzdose.infinitrack.data.entities.BleDevice;
 import de.blitzdose.infinitrack.data.entities.Device;
+import de.blitzdose.infinitrack.data.services.DeviceService;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
@@ -50,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 @PageTitle("Devices")
 @Route(value = "devices", layout = MainLayout.class)
@@ -61,7 +61,12 @@ public class DevicesView extends Div {
     private GridPro<Device> grid;
     GridListDataView<Device> gridListDataView;
 
-    public DevicesView(@Autowired SerialCommunication communication) {
+    DeviceService deviceService;
+
+    List<Device> devices;
+
+    public DevicesView(@Autowired SerialCommunication communication, DeviceService deviceService) {
+        this.deviceService = deviceService;
         addClassName("devices-view");
         setSizeFull();
         createGrid();
@@ -257,7 +262,7 @@ public class DevicesView extends Div {
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_COLUMN_BORDERS);
         grid.setWidthFull();
 
-        List<Device> devices = getDevices();
+        devices = getDevices();
         gridListDataView = grid.setItems(devices);
 
         grid.addSelectionListener(new SelectionListener<Grid<Device>, Device>() {
@@ -296,11 +301,11 @@ public class DevicesView extends Div {
         icon.getStyle().set("height", "36px");
         icon.getStyle().set("width", "36px");
 
-        TextField textField = new TextField("Color");
-        textField.setValue(device.getColor());
-        textField.getStyle().set("flex-grow", "1");
-        colorLayout.add(textField);
-        textField.addFocusListener(new ComponentEventListener<FocusNotifier.FocusEvent<TextField>>() {
+        TextField colorTextField = new TextField("Color");
+        colorTextField.setValue(device.getColor());
+        colorTextField.getStyle().set("flex-grow", "1");
+        colorLayout.add(colorTextField);
+        colorTextField.addFocusListener(new ComponentEventListener<FocusNotifier.FocusEvent<TextField>>() {
             @Override
             public void onComponentEvent(FocusNotifier.FocusEvent<TextField> event) {
                 Dialog dialog = new Dialog();
@@ -326,7 +331,7 @@ public class DevicesView extends Div {
                 dialog.open();
             }
         });
-        textField.addValueChangeListener(event -> icon.setColor(event.getValue()));
+        colorTextField.addValueChangeListener(event -> icon.setColor(event.getValue()));
 
         colorLayout.add(icon);
         dialogLayout.add(colorLayout);
@@ -372,7 +377,12 @@ public class DevicesView extends Div {
         deviceDialog.getHeader().add(closeButton);
 
 
-        Button saveButton = new Button("Save", e -> System.out.println("saved"));
+        Button saveButton = new Button("Save", e -> {
+            device.setName(nameTextField.getValue());
+            device.setColor(colorTextField.getValue());
+            saveDevice(device);
+            deviceDialog.close();
+        });
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         Button deleteButton = new Button("Delete", click -> {
@@ -402,8 +412,20 @@ public class DevicesView extends Div {
         deviceDialog.open();
     }
 
-    private void deleteDevice(Device device) {
+    private void saveDevice(Device device) {
+        deviceService.update(device);
+        refreshGrid();
+    }
 
+    private void deleteDevice(Device device) {
+        deviceService.delete(device.getId());
+        refreshGrid();
+    }
+
+    private void refreshGrid() {
+        devices.clear();
+        devices.addAll(deviceService.list());
+        gridListDataView.refreshAll();
     }
 
     private void addColumnsToGrid() {
@@ -463,19 +485,22 @@ public class DevicesView extends Div {
     }
 
     private List<Device> getDevices() {
-        return Arrays.asList(
-                createDevice(1, "Amarachi Nkechi", 18.58, "Connected", "1.0"),
-                createDevice(2, "Bonelwa Ngqawana", 18.42, "Connected", "1.1"),
-                createDevice(3, "Debashis Bhuiyan", 25.71, "Connected", "1.0"),
-                createDevice(4, "Jacqueline Asong", -50.70, "Offline", "1.0"),
-                createDevice(5, "Kobus van de Vegte", 37.99, "Connected", "1.0"),
-                createDevice(6, "Mattie Blooman", -23.74, "Offline", "1.0"),
-                createDevice(7, "Oea Romana", -49.55, "Offline", "1.0"),
-                createDevice(8, "Stephanus Huggins", 65.06, "Connected", "1.0"),
-                createDevice(9, "Torsten Paulsson", 28.77, "Offline", "1.0"));
+        if (deviceService.count() == 0) {
+            Arrays.asList(
+                    createDevice(1, "Amarachi Nkechi", 18.58, "Connected", "1.0"),
+                    createDevice(2, "Bonelwa Ngqawana", 18.42, "Connected", "1.1"),
+                    createDevice(3, "Debashis Bhuiyan", 25.71, "Connected", "1.0"),
+                    createDevice(4, "Jacqueline Asong", -50.70, "Offline", "1.0"),
+                    createDevice(5, "Kobus van de Vegte", 37.99, "Connected", "1.0"),
+                    createDevice(6, "Mattie Blooman", -23.74, "Offline", "1.0"),
+                    createDevice(7, "Oea Romana", -49.55, "Offline", "1.0"),
+                    createDevice(8, "Stephanus Huggins", 65.06, "Connected", "1.0"),
+                    createDevice(9, "Torsten Paulsson", 28.77, "Offline", "1.0"));
+        }
+        return deviceService.list();
     }
 
-    private Device createDevice(int id, String name, double amount, String status, String firmwareVersion) {
+    private Device createDevice(long id, String name, double amount, String status, String firmwareVersion) {
         Device c = new Device();
         c.setId(id);
         c.setColor("#000000");
@@ -484,6 +509,8 @@ public class DevicesView extends Div {
         c.setSignal(amount);
         c.setStatus(status);
         c.setFirmwareVersion(firmwareVersion);
+
+        deviceService.update(c);
 
         return c;
     }
