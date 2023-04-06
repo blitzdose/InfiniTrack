@@ -1,16 +1,18 @@
 package de.blitzdose.infinitrack.views.map;
 
+import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.PollEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.html.UnorderedList;
 import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.map.configuration.layer.TileLayer;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -19,13 +21,12 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
-import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.theme.lumo.LumoUtility.*;
+import de.blitzdose.infinitrack.components.leaflet.LPolyline;
 import de.blitzdose.infinitrack.views.MainLayout;
 import software.xdev.vaadin.maps.leaflet.flow.LMap;
 import software.xdev.vaadin.maps.leaflet.flow.data.*;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -36,7 +37,7 @@ import java.util.stream.Stream;
 @RouteAlias(value = "", layout = MainLayout.class)
 @JsModule("leaflet/dist/leaflet.js")
 @CssImport("leaflet/dist/leaflet.css")
-public class MapView extends HorizontalLayout {
+public class MapView extends VerticalLayout {
 
     public static class Location {
         private int id;
@@ -143,15 +144,13 @@ public class MapView extends HorizontalLayout {
         setSizeFull();
         setPadding(false);
         setSpacing(false);
-        //map.getElement().setAttribute("theme", "borderless");
-        //map.getElement().setAttribute("class", "map");
-        //map.setHeightFull();
 
         VerticalLayout sidebar = new VerticalLayout();
         sidebar.setSpacing(false);
         sidebar.setPadding(false);
 
         sidebar.setWidth("auto");
+        sidebar.setHeightFull();
         sidebar.addClassNames("sidebar");
         TextField searchField = new TextField();
         searchField.setPlaceholder("Search");
@@ -170,7 +169,22 @@ public class MapView extends HorizontalLayout {
         cardList = new UnorderedList();
         cardList.addClassNames("card-list", Gap.XSMALL, Display.FLEX, FlexDirection.COLUMN, ListStyleType.NONE,
                 Margin.NONE, Padding.NONE);
-        sidebar.add(searchField, scroller);
+
+        Button startRecordingButton = new Button("Start recording");
+        startRecordingButton.setWidthFull();
+        startRecordingButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        startRecordingButton.addClickListener(new ComponentEventListener<ClickEvent<Button>>() {
+            @Override
+            public void onComponentEvent(ClickEvent<Button> buttonClickEvent) {
+
+            }
+        });
+        HorizontalLayout horizontalLayout = new HorizontalLayout();
+        horizontalLayout.setWidthFull();
+        horizontalLayout.addClassNames(Padding.MEDIUM, BoxSizing.BORDER);
+        horizontalLayout.add(startRecordingButton);
+
+        sidebar.add(horizontalLayout, searchField, scroller);
         scroller.setContent(cardList);
 
         configureMap();
@@ -204,14 +218,18 @@ public class MapView extends HorizontalLayout {
     }
 
     private void centerMapDefault() {
-        lmap.setCenter(new LCenter(7, 55, 4));
+        lmap.setCenter(new LCenter(52.358438, 4.881063, 4));
     }
 
     private void configureMap() {
-        lmap = new LMap(49.675126, 12.160733, 17);
+        lmap = new LMap(52.358438, 4.881063, 17);
         lmap.setTileLayer(LTileLayer.DEFAULT_OPENSTREETMAP_TILE);
 
         lmap.setSizeFull();
+
+        LPolyline lPolyLine = new LPolyline(new LPoint(52.358438, 4.881063), new LPoint(52.516312, 13.377688), new LPoint(46.948187, 7.450188));
+        lPolyLine.setStrokeColor("#ff0000");
+        lmap.addLComponents(lPolyLine);
 
         this.centerMapDefault();
         this.updateFilter("");
@@ -284,22 +302,22 @@ public class MapView extends HorizontalLayout {
 
         this.filteredLocations.forEach((location) -> {
             LMarker lMarker = new LMarker(location.getLatitude(), location.getLongitude());
-            lMarker.setIcon(new LIcon());
+
+            Icon icon = new Icon(VaadinIcon.MAP_MARKER);
+            icon.setColor(colors[count[0] % colors.length]);
+            icon.setSize("46px");
+            LDivIcon icon1 = new LDivIcon(icon.getElement().toString());
+            icon1.setIconSize(46, 46);
+            icon1.setClassName("map-icon");
+            icon1.setIconAnchor(23, 46);
+            lMarker.setDivIcon(icon1);
+
             lMarker.setPopup("Hallo");
             lMarker.setTag(location.city);
 
-            //StreamResource streamResource = new StreamResource("location-dot-solid.svg",
-            //        () -> getClass().getResourceAsStream(
-            //                "/META-INF/resources/images/location-dot-solid.svg"));
-            //com.vaadin.flow.component.map.configuration.style.Icon.Options markerIconOptions = new com.vaadin.flow.component.map.configuration.style.Icon.Options();
-            //markerIconOptions.setImg(streamResource);
-            //markerIconOptions.setColor(colors[count[0]++%19]);
-            //markerIconOptions.setScale(0.25f);
-            //com.vaadin.flow.component.map.configuration.style.Icon markerIcon = new com.vaadin.flow.component.map.configuration.style.Icon(markerIconOptions);
-            //feature.setIcon(markerIcon);
-
             markerToLocation.put(lMarker, location);
             lmap.addLComponents(lMarker);
+            count[0]++;
         });
         updateCardList();
     }
