@@ -36,8 +36,9 @@ import com.vaadin.flow.data.selection.SelectionListener;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import de.blitzdose.infinitrack.components.notification.ErrorNotification;
 import de.blitzdose.infinitrack.data.entities.BleDevice;
-import de.blitzdose.infinitrack.data.entities.Device;
+import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.services.DeviceService;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
@@ -58,6 +59,7 @@ import java.util.Locale;
 @JsModule("@datadobi/color-picker/color-picker.js")
 public class DevicesView extends Div {
 
+    SerialCommunication communication;
     private GridPro<Device> grid;
     GridListDataView<Device> gridListDataView;
 
@@ -67,32 +69,30 @@ public class DevicesView extends Div {
 
     public DevicesView(@Autowired SerialCommunication communication, DeviceService deviceService) {
         this.deviceService = deviceService;
+        this.communication = communication;
         addClassName("devices-view");
         setSizeFull();
-        createGrid();
+        grid = createGrid();
 
-        TextField searchField = new TextField();
-        searchField.setWidth("100%");
-        searchField.setPlaceholder("Search");
-        searchField.setPrefixComponent(new Icon(VaadinIcon.SEARCH));
-        searchField.setValueChangeMode(ValueChangeMode.EAGER);
-        searchField.addValueChangeListener(e -> gridListDataView.refreshAll());
+        TextField searchField = createSearchField();
+        addFilterToGrid(searchField);
 
-        gridListDataView.addFilter(device -> {
-            String searchTerm = searchField.getValue().trim();
+        Button addDeviceButton = createAddDeviceButton();
 
-            if (searchTerm.isEmpty())
-                return true;
+        createLayout(searchField, addDeviceButton);
+    }
 
-            boolean matchesName = matchesTerm(device.getName(),
-                    searchTerm);
-            boolean matchesId = matchesTerm(String.valueOf(device.getId()), searchTerm);
-            boolean matchesStatus = matchesTerm(device.getStatus(),
-                    searchTerm);
+    private void createLayout(TextField searchField, Button addDeviceButton) {
+        HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, addDeviceButton);
+        horizontalLayout.setWidth("100%");
 
-            return matchesName || matchesId || matchesStatus;
-        });
+        VerticalLayout layout = new VerticalLayout(horizontalLayout, grid);
+        layout.setHeightFull();
 
+        add(layout);
+    }
+
+    private Button createAddDeviceButton() {
         Button addDeviceBtn = new Button("Add Device", new Icon(VaadinIcon.PLUS));
         addDeviceBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         addDeviceBtn.setMinWidth("auto");
@@ -100,11 +100,7 @@ public class DevicesView extends Div {
             @Override
             public void onComponentEvent(ClickEvent<Button> event) {
                 if (!communication.isOpen()) {
-                    Notification notification = new Notification();
-                    notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
-                    notification.setDuration(5000);
-                    notification.setText("Not connected to base station");
-                    notification.open();
+                    new ErrorNotification().setText("Not connected to base station").open();
                     return;
                 }
 
@@ -119,7 +115,7 @@ public class DevicesView extends Div {
                             addDeviceDialog.close();
                             communication.sendMessage(SerialCommunication.MSG_STOP_SCAN);
 
-                });
+                        });
                 closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
                 addDeviceDialog.getHeader().add(closeButton);
 
@@ -187,7 +183,7 @@ public class DevicesView extends Div {
                     @Override
                     public void onComponentEvent(PollEvent pollEvent) {
                         List<BleDevice> filteredBleDevices = devices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
-                                        bleDevice.getPayload().get("255").equals(SerialCommunication.BLE_SIGNATURE)).toList();
+                                bleDevice.getPayload().get("255").equals(SerialCommunication.BLE_SIGNATURE)).toList();
                         scanResults.setItems(filteredBleDevices);
                     }
                 });
@@ -240,23 +236,43 @@ public class DevicesView extends Div {
                 communication.sendMessage(SerialCommunication.MSG_START_SCAN);
             }
         });
-
-        HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, addDeviceBtn);
-        horizontalLayout.setWidth("100%");
-
-        VerticalLayout layout = new VerticalLayout(horizontalLayout, grid);
-        layout.setHeightFull();
-        //layout.setPadding(false);
-
-        add(layout);
+        return addDeviceBtn;
     }
 
-    private void createGrid() {
-        createGridComponent();
+    private void addFilterToGrid(TextField searchField) {
+        gridListDataView.addFilter(device -> {
+            String searchTerm = searchField.getValue().trim();
+
+            if (searchTerm.isEmpty())
+                return true;
+
+            boolean matchesName = matchesTerm(device.getName(),
+                    searchTerm);
+            boolean matchesId = matchesTerm(String.valueOf(device.getId()), searchTerm);
+            boolean matchesStatus = matchesTerm(device.getStatus(),
+                    searchTerm);
+
+            return matchesName || matchesId || matchesStatus;
+        });
+    }
+
+    private TextField createSearchField() {
+        TextField searchField = new TextField();
+        searchField.setWidth("100%");
+        searchField.setPlaceholder("Search");
+        searchField.setPrefixComponent(new Icon(VaadinIcon.SEARCH));
+        searchField.setValueChangeMode(ValueChangeMode.EAGER);
+        searchField.addValueChangeListener(e -> gridListDataView.refreshAll());
+        return searchField;
+    }
+
+    private GridPro<Device> createGrid() {
+        GridPro<Device> grid = createGridComponent();
         addColumnsToGrid();
+        return grid;
     }
 
-    private void createGridComponent() {
+    private GridPro<Device> createGridComponent() {
         grid = new GridPro<>();
         grid.setSelectionMode(SelectionMode.SINGLE);
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_COLUMN_BORDERS);
@@ -275,6 +291,7 @@ public class DevicesView extends Div {
                 }
             }
         });
+        return grid;
     }
 
     private void showDeviceDialog(Device device) {
@@ -343,7 +360,7 @@ public class DevicesView extends Div {
 
         TextField lastLocationTextField = new TextField("Last known location");
         lastLocationTextField.setReadOnly(true);
-        lastLocationTextField.setValue(device.getCoordinate() != null ? device.getCoordinateAsString() : "Unknown");
+        lastLocationTextField.setValue(device.getCoordinate() != null ? String.format(Locale.ROOT, "%f, %f", device.getCoordinate().getY(), device.getCoordinate().getX()) : "Unknown");
         lastLocationTextField.setWidthFull();
         Span copyIcon = new Span();
         copyIcon.setClassName("la la-copy");
@@ -410,6 +427,25 @@ public class DevicesView extends Div {
         deviceDialog.getFooter().add(saveButton);
 
         deviceDialog.open();
+
+        //final GPX gpx = GPX.builder()
+        //        .creator("InfiniTrack")
+        //        .addTrack(track -> track
+        //                .addSegment(segment -> segment
+        //                        .addPoint(p -> p.lat(48.20100).lon(16.31651).ele(283))
+        //                        .addPoint(p -> p.lat(48.20112).lon(16.31639).ele(278))
+        //                        .addPoint(p -> p.lat(48.20126).lon(16.31601).ele(274))))
+        //        .build();
+//
+        //ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        //try {
+        //    GPX.Writer.DEFAULT.write(gpx, outputStream);
+        //    byte[] gpxBytes = outputStream.toByteArray();
+        //    outputStream.flush();
+        //    outputStream.close();
+        //} catch (IOException e) {
+        //    throw new RuntimeException(e);
+        //}
     }
 
     private void saveDevice(Device device) {
@@ -437,15 +473,13 @@ public class DevicesView extends Div {
     }
 
     private void createIdColumn() {
-        Grid.Column<Device> idColumn = grid
-                .addColumn(new NumberRenderer<>(Device::getId, NumberFormat.getNumberInstance(Locale.GERMANY)))
+        grid.addColumn(new NumberRenderer<>(Device::getId, NumberFormat.getNumberInstance(Locale.GERMANY)))
                 .setComparator(Device::getId).setHeader("ID")
                 .setFlexGrow(0);
     }
 
     private void createColorColumn() {
-        Grid.Column<Device> colorColumn = grid
-                .addColumn(new ComponentRenderer<>(device -> {
+        grid.addColumn(new ComponentRenderer<>(device -> {
                     Icon icon = new Icon(VaadinIcon.CIRCLE);
                     icon.setColor(device.getColor());
                     return icon;
@@ -456,19 +490,17 @@ public class DevicesView extends Div {
     }
 
     private void createNameColumn() {
-        Grid.Column<Device> nameColumn = grid
-                .addColumn(new TextRenderer<>(Device::getName))
+        grid.addColumn(new TextRenderer<>(Device::getName))
                 .setComparator(Device::getName).setHeader("Name");
     }
 
     private void createSignalColumn() {
-        Grid.Column<Device> signalColumn = grid
-                .addColumn(new NumberRenderer<>(Device::getSignal, "%.2f dB", Locale.GERMANY))
+        grid.addColumn(new NumberRenderer<>(Device::getSignal, "%.2f dB", Locale.GERMANY))
                 .setComparator(Device::getSignal).setHeader("Signal");
     }
 
     private void createStatusColumn() {
-        Grid.Column<Device> statusColumn = grid.addColumn(new ComponentRenderer<>(device -> {
+        grid.addColumn(new ComponentRenderer<>(device -> {
             Span span = new Span();
             span.setText(device.getStatus());
             span.getElement().setAttribute("theme", "badge " + (device.getStatus().equalsIgnoreCase("connected") ? "success" : "error"));
