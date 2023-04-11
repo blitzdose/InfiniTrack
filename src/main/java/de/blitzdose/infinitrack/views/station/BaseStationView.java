@@ -15,10 +15,14 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import de.blitzdose.infinitrack.gps.GPSParser;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
+import elemental.json.JsonObject;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +43,12 @@ public class BaseStationView extends Div {
 
     public BaseStationView(@Autowired SerialCommunication communication) {
         addClassName("base-station-view");
+
+        try {
+            new GPSParser().parsePayload("");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         UI ui = UI.getCurrent();
         ui.setPollInterval(1000);
@@ -131,7 +141,7 @@ public class BaseStationView extends Div {
         textArea.setValue(console);
         communication.setOnDataListener(new SerialCommunication.DataListener() {
             @Override
-            public void dataReceived(String msg, String console) {
+            public void dataReceived(JSONObject msg, String console) {
                 BaseStationView.this.console = console;
             }
         });

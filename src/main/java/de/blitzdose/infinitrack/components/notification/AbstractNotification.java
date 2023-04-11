@@ -17,6 +17,9 @@ public abstract class AbstractNotification <T extends AbstractNotification <T>> 
     }
 
     public void open() {
+        if (this.notification.getDuration() == 0) {
+            this.notification.setDuration(5000);
+        }
         notification.open();
     }
 }

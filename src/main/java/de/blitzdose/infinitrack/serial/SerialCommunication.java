@@ -5,6 +5,8 @@ import com.fazecast.jSerialComm.SerialPortDataListener;
 import com.fazecast.jSerialComm.SerialPortDataListenerWithExceptions;
 import com.fazecast.jSerialComm.SerialPortEvent;
 import com.vaadin.flow.spring.annotation.SpringComponent;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 import java.nio.charset.Charset;
@@ -31,6 +33,7 @@ public class SerialCommunication {
     public final static String MSG_SCAN_STARTED = "ble_scan_started";
     public final static String MSG_SCAN_STOPPED = "ble_scan_stopped";
     public static final String MSG_BLE_CONNECT = "ble_connect:%s";
+    public static final String MSG_BLE_DATA_SEND = "ble_data_send";
 
     public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
@@ -67,7 +70,11 @@ public class SerialCommunication {
                             String line = lastMsg.substring(0, newLineIndex);
                             fullConsole = String.format("%s%s", fullConsole, line);
                             if (dataListener != null) {
-                                dataListener.dataReceived(line, fullConsole);
+                                JSONObject jsonObject = new JSONObject("{\"type\": \"unknown\", \"msg\": \"\"}");
+                                try {
+                                    jsonObject = new JSONObject(line);
+                                } catch (JSONException ignored) { }
+                                dataListener.dataReceived(jsonObject, fullConsole);
                             }
                             lastMsg = lastMsg.substring(newLineIndex+1);
 
@@ -147,7 +154,7 @@ public class SerialCommunication {
     @ApplicationScope
     @SpringComponent
     public interface DataListener {
-        void dataReceived(String msg, String console);
+        void dataReceived(JSONObject msg, String console);
     }
 
     @ApplicationScope

@@ -37,12 +37,14 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.blitzdose.infinitrack.components.notification.ErrorNotification;
+import de.blitzdose.infinitrack.components.notification.SuccessNotification;
 import de.blitzdose.infinitrack.data.entities.BleDevice;
 import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.services.DeviceService;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.olli.ClipboardHelper;
@@ -157,6 +159,22 @@ public class DevicesView extends Div {
                         waitDialog.setCloseOnOutsideClick(false);
                         waitDialog.setCloseOnEsc(false);
                         waitDialog.open();
+
+                        communication.setOnDataListener(new SerialCommunication.DataListener() {
+                            @Override
+                            public void dataReceived(JSONObject msg, String console) {
+                                if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS) &&
+                                        msg.getString("msg").equals(SerialCommunication.MSG_BLE_DATA_SEND)) {
+                                    DevicesView.this.getUI().ifPresent(ui -> {
+                                        ui.access(() -> {
+                                            waitDialog.close();
+                                            communication.setOnDataListener(null);
+                                            new SuccessNotification().setText("Device added").open();
+                                        });
+                                    });
+                                }
+                            }
+                        });
                     }
                 });
 
@@ -191,10 +209,9 @@ public class DevicesView extends Div {
 
                 communication.setOnDataListener(new SerialCommunication.DataListener() {
                     @Override
-                    public void dataReceived(String msg, String console) {
-                        JSONObject jsonObject = new JSONObject(msg);
-                        if (jsonObject.getString("type").equals(SerialCommunication.TYPE_SCAN_RESULT)) {
-                            JSONObject data = jsonObject.getJSONObject("msg");
+                    public void dataReceived(JSONObject msg, String console) {
+                        if (msg.getString("type").equals(SerialCommunication.TYPE_SCAN_RESULT)) {
+                            JSONObject data = msg.getJSONObject("msg");
                             String address = data.getString("addr");
                             int rssi = data.getInt("rssi");
                             JSONObject payload = data.getJSONObject("payload");
@@ -211,8 +228,8 @@ public class DevicesView extends Div {
 
                             devices.remove(bleDevice);
                             devices.add(bleDevice);
-                        } else if (jsonObject.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
-                            if (jsonObject.getString("msg").equals(SerialCommunication.MSG_SCAN_STOPPED)) {
+                        } else if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
+                            if (msg.getString("msg").equals(SerialCommunication.MSG_SCAN_STOPPED)) {
                                 DevicesView.this.getUI().ifPresent(ui -> {
                                     ui.access(() -> {
                                         progressBar.setVisible(false);
@@ -220,7 +237,7 @@ public class DevicesView extends Div {
                                         repeatScanButton.setEnabled(true);
                                     });
                                 });
-                            } else if (jsonObject.getString("msg").equals(SerialCommunication.MSG_SCAN_STARTED)) {
+                            } else if (msg.getString("msg").equals(SerialCommunication.MSG_SCAN_STARTED)) {
                                 DevicesView.this.getUI().ifPresent(ui -> {
                                     ui.access(() -> {
                                         progressBar.setVisible(true);
