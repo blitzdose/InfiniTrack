@@ -44,9 +44,14 @@ import de.blitzdose.infinitrack.data.services.DeviceService;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
+import org.hibernate.Hibernate;
+import org.hibernate.Session;
+import org.hibernate.SessionBuilder;
+import org.hibernate.SessionFactory;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.orm.hibernate5.SessionFactoryUtils;
 import org.vaadin.olli.ClipboardHelper;
 
 import java.text.NumberFormat;
@@ -169,6 +174,17 @@ public class DevicesView extends Div {
                                         ui.access(() -> {
                                             waitDialog.close();
                                             communication.setOnDataListener(null);
+
+                                            Device device = new Device();
+                                            device.setAddress(bleDevice.getAddressFormatted());
+                                            device.setName("New Device");
+                                            device.setStatus("Offline");
+                                            device.setFirmwareVersion("1.0");
+                                            device.setColor("#000000");
+                                            device.setSignal(0.0);
+
+                                            deviceService.update(device);
+
                                             new SuccessNotification().setText("Device added").open();
                                         });
                                     });
@@ -328,6 +344,11 @@ public class DevicesView extends Div {
 
         HorizontalLayout colorLayout = new HorizontalLayout();
 
+        TextField colorTextField = new TextField("Color");
+        colorTextField.setValue(device.getColor());
+        colorTextField.getStyle().set("flex-grow", "1");
+        colorLayout.add(colorTextField);
+
         Icon icon = new Icon(VaadinIcon.CIRCLE);
         icon.setColor(device.getColor());
         icon.getStyle().set("align-self", "end");
@@ -335,16 +356,12 @@ public class DevicesView extends Div {
         icon.getStyle().set("height", "36px");
         icon.getStyle().set("width", "36px");
 
-        TextField colorTextField = new TextField("Color");
-        colorTextField.setValue(device.getColor());
-        colorTextField.getStyle().set("flex-grow", "1");
-        colorLayout.add(colorTextField);
-        colorTextField.addFocusListener(new ComponentEventListener<FocusNotifier.FocusEvent<TextField>>() {
+        icon.addClickListener(new ComponentEventListener<ClickEvent<Icon>>() {
             @Override
-            public void onComponentEvent(FocusNotifier.FocusEvent<TextField> event) {
+            public void onComponentEvent(ClickEvent<Icon> iconClickEvent) {
                 Dialog dialog = new Dialog();
 
-                ColorPickerRaw colorPicker = new ColorPickerRaw(event.getSource().getValue(), event.getSource().getValue());
+                ColorPickerRaw colorPicker = new ColorPickerRaw(colorTextField.getValue(), colorTextField.getValue());
                 colorPicker.setHslEnabled(false);
                 colorPicker.setRgbEnabled(false);
                 colorPicker.setAlphaEnabled(false);
@@ -354,8 +371,8 @@ public class DevicesView extends Div {
                 Button saveButton = new Button("Save");
                 saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
                 saveButton.addClickListener(clickEvent -> {
-                   event.getSource().setValue(colorPicker.getValue());
-                   dialog.close();
+                    colorTextField.setValue(colorPicker.getValue());
+                    dialog.close();
                 });
 
                 Button cancelButton = new Button("Cancel");
@@ -365,10 +382,18 @@ public class DevicesView extends Div {
                 dialog.open();
             }
         });
+
+
         colorTextField.addValueChangeListener(event -> icon.setColor(event.getValue()));
+        colorTextField.setValueChangeMode(ValueChangeMode.EAGER);
 
         colorLayout.add(icon);
         dialogLayout.add(colorLayout);
+
+        TextField addressTextField = new TextField("Address");
+        addressTextField.setReadOnly(true);
+        addressTextField.setValue(device.getAddress());
+        dialogLayout.add(addressTextField);
 
         TextField versionTextField = new TextField("Firmware version");
         versionTextField.setReadOnly(true);
@@ -377,7 +402,7 @@ public class DevicesView extends Div {
 
         TextField lastLocationTextField = new TextField("Last known location");
         lastLocationTextField.setReadOnly(true);
-        lastLocationTextField.setValue(device.getCoordinate() != null ? String.format(Locale.ROOT, "%f, %f", device.getCoordinate().getY(), device.getCoordinate().getX()) : "Unknown");
+        lastLocationTextField.setValue(device.getLastLocation() != null ? String.format(Locale.ROOT, "%f, %f", device.getLastLocation().getLatitude(), device.getLastLocation().getLatitude()) : "Unknown");
         lastLocationTextField.setWidthFull();
         Span copyIcon = new Span();
         copyIcon.setClassName("la la-copy");
@@ -483,6 +508,7 @@ public class DevicesView extends Div {
 
     private void addColumnsToGrid() {
         createIdColumn();
+        createAddressColumn();
         createColorColumn();
         createNameColumn();
         createSignalColumn();
@@ -493,6 +519,11 @@ public class DevicesView extends Div {
         grid.addColumn(new NumberRenderer<>(Device::getId, NumberFormat.getNumberInstance(Locale.GERMANY)))
                 .setComparator(Device::getId).setHeader("ID")
                 .setFlexGrow(0);
+    }
+
+    private void createAddressColumn() {
+        grid.addColumn(new TextRenderer<>(Device::getAddress))
+                .setComparator(Device::getAddress).setHeader("Address");
     }
 
     private void createColorColumn() {
@@ -552,8 +583,8 @@ public class DevicesView extends Div {
     private Device createDevice(long id, String name, double amount, String status, String firmwareVersion) {
         Device c = new Device();
         c.setId(id);
+        c.setAddress("AA:BB:CC:DD:EE:FF");
         c.setColor("#000000");
-        c.setCoordinate(new Coordinate(9.070210, 48.514922));
         c.setName(name);
         c.setSignal(amount);
         c.setStatus(status);

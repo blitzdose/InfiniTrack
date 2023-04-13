@@ -3,8 +3,10 @@ package de.blitzdose.infinitrack.data.entities.device;
 import com.vaadin.flow.component.map.configuration.Coordinate;
 import de.blitzdose.infinitrack.data.entities.AbstractEntity;
 
+import javax.annotation.Nullable;
 import javax.persistence.Entity;
 import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -18,10 +20,10 @@ public class Device extends AbstractEntity {
     private double signal;
     private String status;
     private String firmwareVersion;
-    private Coordinate coordinate;
-
     @OneToMany
     private List<Location> locationHistory = new ArrayList<>();
+    @OneToOne
+    private Location lastLocation;
 
     public String getName() {
         return name;
@@ -55,14 +57,6 @@ public class Device extends AbstractEntity {
         this.firmwareVersion = firmwareVersion;
     }
 
-    public Coordinate getCoordinate() {
-        return coordinate;
-    }
-
-    public void setCoordinate(Coordinate coordinate) {
-        this.coordinate = coordinate;
-    }
-
     public String getColor() {
         return color;
     }
@@ -80,10 +74,15 @@ public class Device extends AbstractEntity {
     }
 
     public List<Location> getLocationHistory() {
-        return locationHistory;
+        return this.locationHistory;
     }
 
     public void addToLocationHistory(Location location) {
-        locationHistory.add(location);
+        this.locationHistory.add(location);
+        this.lastLocation = location;
+    }
+
+    public Location getLastLocation() {
+        return lastLocation;
     }
 }
