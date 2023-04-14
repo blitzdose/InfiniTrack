@@ -463,25 +463,6 @@ public class DevicesView extends Div {
         deviceDialog.getFooter().add(saveButton);
 
         deviceDialog.open();
-
-        //final GPX gpx = GPX.builder()
-        //        .creator("InfiniTrack")
-        //        .addTrack(track -> track
-        //                .addSegment(segment -> segment
-        //                        .addPoint(p -> p.lat(48.20100).lon(16.31651).ele(283))
-        //                        .addPoint(p -> p.lat(48.20112).lon(16.31639).ele(278))
-        //                        .addPoint(p -> p.lat(48.20126).lon(16.31601).ele(274))))
-        //        .build();
-//
-        //ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        //try {
-        //    GPX.Writer.DEFAULT.write(gpx, outputStream);
-        //    byte[] gpxBytes = outputStream.toByteArray();
-        //    outputStream.flush();
-        //    outputStream.close();
-        //} catch (IOException e) {
-        //    throw new RuntimeException(e);
-        //}
     }
 
     private void saveDevice(Device device) {
