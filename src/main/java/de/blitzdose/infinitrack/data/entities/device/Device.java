@@ -72,7 +72,15 @@ public class Device extends AbstractEntity {
         this.lastLocation = location;
     }
 
+    public void clearLocationHistory() {
+        this.locationHistory.clear();
+    }
+
     public Location getLastLocation() {
         return lastLocation;
+    }
+
+    public void setLastLocation(Location lastLocation) {
+        this.lastLocation = lastLocation;
     }
 }

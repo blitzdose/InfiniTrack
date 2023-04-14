@@ -8,6 +8,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.dependency.JsModule;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.html.UnorderedList;
@@ -22,15 +23,26 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
+import com.vaadin.flow.server.StreamResource;
+import com.vaadin.flow.server.frontend.installer.DefaultFileDownloader;
 import com.vaadin.flow.theme.lumo.LumoUtility.*;
 import de.blitzdose.infinitrack.components.leaflet.LPolyline;
 import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.services.DeviceService;
+import de.blitzdose.infinitrack.gps.GPSUpdater;
 import de.blitzdose.infinitrack.views.MainLayout;
+import io.jenetics.jpx.GPX;
+import io.jenetics.jpx.Speed;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.vaadin.olli.FileDownloadWrapper;
 import software.xdev.vaadin.maps.leaflet.flow.LMap;
 import software.xdev.vaadin.maps.leaflet.flow.data.*;
 
+import javax.transaction.Transactional;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,13 +67,13 @@ public class MapView extends VerticalLayout {
 
     private final List<Device> devices;
 
-    public MapView(@Autowired DeviceService deviceService) {
+    public MapView(@Autowired DeviceService deviceService, @Autowired GPSUpdater gpsUpdater) {
         addClassName("map-view");
         setSizeFull();
         setPadding(false);
         setSpacing(false);
 
-        devices = deviceService.list();
+        devices = deviceService.listWithLocations();
 
         VerticalLayout sidebar = new VerticalLayout();
         sidebar.setSpacing(false);
@@ -90,11 +102,31 @@ public class MapView extends VerticalLayout {
 
         Button startRecordingButton = new Button("Start recording");
         startRecordingButton.setWidthFull();
-        startRecordingButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        if (gpsUpdater.isRecording()) {
+            startRecordingButton.setText("Stop recording");
+            startRecordingButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+            startRecordingButton.setIcon(VaadinIcon.STOP.create());
+        } else {
+            startRecordingButton.setText("Start recording");
+            startRecordingButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            startRecordingButton.setIcon(VaadinIcon.PLAY.create());
+        }
         startRecordingButton.addClickListener(new ComponentEventListener<ClickEvent<Button>>() {
             @Override
             public void onComponentEvent(ClickEvent<Button> buttonClickEvent) {
-
+                if (gpsUpdater.isRecording()) {
+                    gpsUpdater.setRecording(false);
+                    startRecordingButton.setText("Start recording");
+                    startRecordingButton.removeThemeVariants(ButtonVariant.LUMO_ERROR);
+                    startRecordingButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    startRecordingButton.setIcon(VaadinIcon.PLAY.create());
+                } else {
+                    gpsUpdater.setRecording(true);
+                    startRecordingButton.setText("Stop recording");
+                    startRecordingButton.removeThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    startRecordingButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                    startRecordingButton.setIcon(VaadinIcon.STOP.create());
+                }
             }
         });
         HorizontalLayout horizontalLayout = new HorizontalLayout();
@@ -114,9 +146,10 @@ public class MapView extends VerticalLayout {
         UI.getCurrent().setPollInterval(1000);
         UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
             @Override
+            //@Transactional
             public void onComponentEvent(PollEvent pollEvent) {
                 devices.clear();
-                devices.addAll(deviceService.list());
+                devices.addAll(deviceService.listWithLocations());
                 updateFilter(searchField.getValue().toLowerCase());
             }
         });
@@ -143,10 +176,6 @@ public class MapView extends VerticalLayout {
 
         lmap.setSizeFull();
 
-        LPolyline lPolyLine = new LPolyline(new LPoint(52.358438, 4.881063), new LPoint(52.516312, 13.377688), new LPoint(46.948187, 7.450188));
-        lPolyLine.setStrokeColor("#ff0000");
-        lmap.addLComponents(lPolyLine);
-
         this.centerMapDefault();
         this.updateFilter("");
     }
@@ -170,11 +199,48 @@ public class MapView extends VerticalLayout {
             Span signal = new Span("RSSI: " + device.getSignal());
             signal.addClassNames(TextColor.SECONDARY);
 
+            Button exportButton = new Button("Export to GPX");
+            exportButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            exportButton.setIcon(VaadinIcon.DOWNLOAD.create());
+            FileDownloadWrapper buttonWrapper = new FileDownloadWrapper(
+                    new StreamResource(device.getName().replace(" ", "_").toLowerCase() + ".gpx", () -> {
+                        final GPX gpx = GPX.builder()
+                                .creator("InfiniTrack")
+                                .addTrack(track -> track
+                                        .addSegment(segment -> device.getLocationHistory()
+                                                .forEach(location -> segment.addPoint(p ->
+                                                        p.lat(location.getLatitude())
+                                                                .lon(location.getLongitude())
+                                                                .ele(location.getAltitude())
+                                                                .speed(location.getSpeed(), Speed.Unit.KILOMETERS_PER_HOUR)
+                                                                .pdop((double) location.getPdop())
+                                                                .sat(location.getSatelliteCount())
+                                                                .time(location.getTimestamp())))))
+                                .build();
+
+                        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                        byte[] gpxBytes = new byte[0];
+                        try {
+                            GPX.Writer.DEFAULT.write(gpx, outputStream);
+                            gpxBytes = outputStream.toByteArray();
+
+                            outputStream.flush();
+                            outputStream.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        return new ByteArrayInputStream(gpxBytes);
+                    })
+            );
+            buttonWrapper.wrapComponent(exportButton);
+
+            buttonWrapper.getElement().addEventListener("click", event -> {}).addEventData("event.stopPropagation()");
+
             ProgressBar progressBar = new ProgressBar();
             progressBar.setValue(1);
             progressBar.getStyle().set("--progress-color", device.getColor());
 
-            card.add(address, name, signal, progressBar);
+            card.add(address, name, signal, buttonWrapper, progressBar);
 
             button.getElement().appendChild(card.getElement());
             cardList.add(new ListItem(button));
@@ -190,42 +256,47 @@ public class MapView extends VerticalLayout {
                         || device.getAddress().toLowerCase().contains(filter))
                 .collect(Collectors.toList());
 
-        for (LMarker m : lmap.getComponents().stream().filter(lComponent -> lComponent instanceof LMarker).toArray(LMarker[]::new)) {
-            lmap.removeLComponents(m);
+        List<LComponent> lComponents = lmap.getComponents().stream()
+                .filter(lComponent -> lComponent instanceof LMarker || lComponent instanceof LPolyline).toList();
+        lmap.removeLComponents(lComponents);
+
+        this.filteredDevices.forEach(this::addDeviceToMap);
+        updateCardList();
+    }
+
+    public void addDeviceToMap(Device device) {
+        LMarker lMarker = new LMarker(device.getLastLocation().getLatitude(), device.getLastLocation().getLongitude());
+
+        if (lMarker.getLat() == 0 && lMarker.getLon() == 0) {
+            return;
         }
 
-        final int[] count = {0};
+        Icon icon = new Icon(VaadinIcon.MAP_MARKER);
+        icon.setColor(device.getColor());
+        icon.setSize("46px");
+        LDivIcon icon1 = new LDivIcon(icon.getElement().toString());
+        icon1.setIconSize(46, 46);
+        icon1.setClassName("map-icon");
+        icon1.setIconAnchor(23, 46);
+        lMarker.setDivIcon(icon1);
 
+        lMarker.setTag(device.getAddress());
 
-        this.filteredDevices.forEach((device) -> {
-            LMarker lMarker = new LMarker(device.getLastLocation().getLatitude(), device.getLastLocation().getLongitude());
-
-            if (lMarker.getLat() == 0 && lMarker.getLon() == 0) {
-                return;
+        markerToDevice.put(lMarker, device);
+        lmap.addLComponents(lMarker);
+        lmap.addMarkerClickListener(new ComponentEventListener<LMap.MarkerClickEvent>() {
+            @Override
+            public void onComponentEvent(LMap.MarkerClickEvent event) {
+                Device clickedDevice = devices.stream().filter(device1 -> device1.getAddress().equals(event.getTag())).findFirst().get();
+                scrollToCard(clickedDevice);
             }
-
-            Icon icon = new Icon(VaadinIcon.MAP_MARKER);
-            icon.setColor(device.getColor());
-            icon.setSize("46px");
-            LDivIcon icon1 = new LDivIcon(icon.getElement().toString());
-            icon1.setIconSize(46, 46);
-            icon1.setClassName("map-icon");
-            icon1.setIconAnchor(23, 46);
-            lMarker.setDivIcon(icon1);
-
-            lMarker.setTag(device.getAddress());
-
-            markerToDevice.put(lMarker, device);
-            lmap.addLComponents(lMarker);
-            lmap.addMarkerClickListener(new ComponentEventListener<LMap.MarkerClickEvent>() {
-                @Override
-                public void onComponentEvent(LMap.MarkerClickEvent event) {
-                    Device clickedDevice = devices.stream().filter(device1 -> device1.getAddress().equals(event.getTag())).findFirst().get();
-                    scrollToCard(clickedDevice);
-                }
-            });
-            count[0]++;
         });
-        updateCardList();
+
+        List<LPoint> lPoints = device.getLocationHistory().stream().map(location -> new LPoint(location.getLatitude(), location.getLongitude())).toList();
+
+        LPolyline lPolyline = new LPolyline(lPoints);
+        lPolyline.setStrokeColor(device.getColor());
+        lPolyline.setStrokeWeight(1);
+        lmap.addLComponents(lPolyline);
     }
 }
