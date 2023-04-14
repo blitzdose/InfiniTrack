@@ -55,10 +55,7 @@ import org.springframework.orm.hibernate5.SessionFactoryUtils;
 import org.vaadin.olli.ClipboardHelper;
 
 import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 @PageTitle("Devices")
 @Route(value = "devices", layout = MainLayout.class)
@@ -138,14 +135,14 @@ public class DevicesView extends Div {
 
                 dialogLayout.add(progressBarLabel, progressBar);
 
-                ArrayList<BleDevice> devices = new ArrayList<>();
+                ArrayList<BleDevice> bleDevices = new ArrayList<>();
 
                 Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
                 scanResults.addColumn(BleDevice::getName).setHeader("Name").setAutoWidth(true);
                 scanResults.addColumn(BleDevice::getAddressFormatted).setHeader("Address").setAutoWidth(true);
                 scanResults.addColumn(BleDevice::getRssi).setHeader("Signal (RSSI)").setAutoWidth(true).setFlexGrow(0);
 
-                scanResults.setItems(devices);
+                scanResults.setItems(bleDevices);
 
                 scanResults.addItemClickListener(new ComponentEventListener<ItemClickEvent<BleDevice>>() {
                     @Override
@@ -168,26 +165,28 @@ public class DevicesView extends Div {
                         communication.setOnDataListener(new SerialCommunication.DataListener() {
                             @Override
                             public void dataReceived(JSONObject msg, String console) {
-                                if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS) &&
-                                        msg.getString("msg").equals(SerialCommunication.MSG_BLE_DATA_SEND)) {
-                                    DevicesView.this.getUI().ifPresent(ui -> {
-                                        ui.access(() -> {
-                                            waitDialog.close();
-                                            communication.setOnDataListener(null);
+                                if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
+                                    if (msg.getString("msg").equals(SerialCommunication.MSG_BLE_DATA_SEND)) {
+                                        DevicesView.this.getUI().ifPresent(ui -> {
+                                            ui.access(() -> {
+                                                waitDialog.close();
+                                                communication.setOnDataListener(null);
 
-                                            Device device = new Device();
-                                            device.setAddress(bleDevice.getAddressFormatted());
-                                            device.setName("New Device");
-                                            device.setStatus("Offline");
-                                            device.setFirmwareVersion("1.0");
-                                            device.setColor("#000000");
-                                            device.setSignal(0.0);
+                                                saveDevice(createDevice("New Device", bleDevice.getAddressFormatted(), "Offline"));
 
-                                            deviceService.update(device);
-
-                                            new SuccessNotification().setText("Device added").open();
+                                                new SuccessNotification().setText("Device added").open();
+                                            });
                                         });
-                                    });
+                                    } else if (msg.getString("msg").equals(SerialCommunication.MSG_UNKNOWN_ERROR)) {
+                                        DevicesView.this.getUI().ifPresent(ui -> {
+                                            ui.access(() -> {
+                                                waitDialog.close();
+                                                communication.setOnDataListener(null);
+
+                                                new ErrorNotification().setText("Error while communicating. Please try again.").open();
+                                            });
+                                        });
+                                    }
                                 }
                             }
                         });
@@ -202,8 +201,8 @@ public class DevicesView extends Div {
                 addDeviceDialog.add(dialogLayout, scanResults);
 
                 Button repeatScanButton = new Button("Repeat scan", click -> {
-                    devices.clear();
-                    scanResults.setItems(devices);
+                    bleDevices.clear();
+                    scanResults.setItems(bleDevices);
                     communication.sendMessage(SerialCommunication.MSG_START_SCAN);
                 });
                 repeatScanButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -216,7 +215,7 @@ public class DevicesView extends Div {
                 UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
                     @Override
                     public void onComponentEvent(PollEvent pollEvent) {
-                        List<BleDevice> filteredBleDevices = devices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
+                        List<BleDevice> filteredBleDevices = bleDevices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
                                 bleDevice.getPayload().get("255").equals(SerialCommunication.BLE_SIGNATURE)).toList();
                         scanResults.setItems(filteredBleDevices);
                     }
@@ -238,12 +237,12 @@ public class DevicesView extends Div {
                                 bleDevice.setNameHEX(payload.getString("9"));
                             }
 
-                            devices.stream()
+                            bleDevices.stream()
                                     .filter(bleDevice1 -> bleDevice1.equals(bleDevice))
                                     .forEach(bleDevice::mergeFrom);
 
-                            devices.remove(bleDevice);
-                            devices.add(bleDevice);
+                            bleDevices.remove(bleDevice);
+                            bleDevices.add(bleDevice);
                         } else if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
                             if (msg.getString("msg").equals(SerialCommunication.MSG_SCAN_STOPPED)) {
                                 DevicesView.this.getUI().ifPresent(ui -> {
@@ -395,11 +394,6 @@ public class DevicesView extends Div {
         addressTextField.setValue(device.getAddress());
         dialogLayout.add(addressTextField);
 
-        TextField versionTextField = new TextField("Firmware version");
-        versionTextField.setReadOnly(true);
-        versionTextField.setValue(device.getFirmwareVersion());
-        dialogLayout.add(versionTextField);
-
         TextField lastLocationTextField = new TextField("Last known location");
         lastLocationTextField.setReadOnly(true);
         lastLocationTextField.setValue(device.getLastLocation() != null ? String.format(Locale.ROOT, "%f, %f", device.getLastLocation().getLatitude(), device.getLastLocation().getLatitude()) : "Unknown");
@@ -491,6 +485,13 @@ public class DevicesView extends Div {
     }
 
     private void saveDevice(Device device) {
+        Optional<Device> optionalDevice = deviceService.get(device.getId());
+        if (optionalDevice.isPresent()) {
+            Device newDevice = optionalDevice.get();
+            newDevice.setName(device.getName());
+            newDevice.setColor(device.getColor());
+            device = newDevice;
+        }
         deviceService.update(device);
         refreshGrid();
     }
@@ -565,30 +566,15 @@ public class DevicesView extends Div {
     }
 
     private List<Device> getDevices() {
-        if (deviceService.count() == 0) {
-            Arrays.asList(
-                    createDevice(1, "Amarachi Nkechi", 18.58, "Connected", "1.0"),
-                    createDevice(2, "Bonelwa Ngqawana", 18.42, "Connected", "1.1"),
-                    createDevice(3, "Debashis Bhuiyan", 25.71, "Connected", "1.0"),
-                    createDevice(4, "Jacqueline Asong", -50.70, "Offline", "1.0"),
-                    createDevice(5, "Kobus van de Vegte", 37.99, "Connected", "1.0"),
-                    createDevice(6, "Mattie Blooman", -23.74, "Offline", "1.0"),
-                    createDevice(7, "Oea Romana", -49.55, "Offline", "1.0"),
-                    createDevice(8, "Stephanus Huggins", 65.06, "Connected", "1.0"),
-                    createDevice(9, "Torsten Paulsson", 28.77, "Offline", "1.0"));
-        }
         return deviceService.list();
     }
 
-    private Device createDevice(long id, String name, double amount, String status, String firmwareVersion) {
+    private Device createDevice(String name, String address, String status) {
         Device c = new Device();
-        c.setId(id);
-        c.setAddress("AA:BB:CC:DD:EE:FF");
-        c.setColor("#000000");
         c.setName(name);
-        c.setSignal(amount);
+        c.setAddress(address);
+        c.setColor("#000000");
         c.setStatus(status);
-        c.setFirmwareVersion(firmwareVersion);
 
         deviceService.update(c);
 

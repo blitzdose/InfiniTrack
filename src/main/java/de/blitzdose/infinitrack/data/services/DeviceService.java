@@ -22,6 +22,10 @@ public class DeviceService {
         return repository.findById(id);
     }
 
+    public Optional<Device> getByAddress(String address) {
+        return repository.findByAddressIgnoreCase(address);
+    }
+
     public Device update(Device entity) {
         return repository.save(entity);
     }
