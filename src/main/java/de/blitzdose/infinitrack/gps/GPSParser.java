@@ -3,6 +3,7 @@ package de.blitzdose.infinitrack.gps;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -60,8 +61,12 @@ public class GPSParser {
         int month = getIntFromBytes(monthBytes);
         int day = getIntFromBytes(dayBytes);
 
-        LocalDateTime localDateTime = LocalDateTime.of(year, month, day, hours, minutes, seconds);
-        return localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+        try {
+            LocalDateTime localDateTime = LocalDateTime.of(year, month, day, hours, minutes, seconds, LocalDateTime.now().getNano());
+            return localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (DateTimeException ignored) {
+            return 0;
+        }
     }
 
     public float getLatitude() throws IOException {

@@ -3,6 +3,7 @@ package de.blitzdose.infinitrack.serial;
 public class Message {
 
     public final static String TYPE_STATUS = "status";
+    public final static String TYPE_LORA_MSG = "lora_msg";
     public final static String STATUS_READY_GLOBAL = "ready_global";
 
     private String type;

@@ -5,10 +5,15 @@ import com.fazecast.jSerialComm.SerialPortDataListener;
 import com.fazecast.jSerialComm.SerialPortDataListenerWithExceptions;
 import com.fazecast.jSerialComm.SerialPortEvent;
 import com.vaadin.flow.spring.annotation.SpringComponent;
+import de.blitzdose.infinitrack.data.entities.device.Location;
+import de.blitzdose.infinitrack.gps.GPSUpdater;
+import de.blitzdose.infinitrack.lora.LoRaHeaderParser;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.annotation.ApplicationScope;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,10 +40,14 @@ public class SerialCommunication {
     public static final String MSG_BLE_CONNECT = "ble_connect:%s";
     public static final String MSG_BLE_DATA_SEND = "ble_data_send";
 
+    public static final String MSG_UNKNOWN_ERROR = "unknown_error";
+
     public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
-    public SerialCommunication() {
+    private final GPSUpdater gpsUpdater;
 
+    public SerialCommunication(@Autowired GPSUpdater gpsUpdater) {
+        this.gpsUpdater = gpsUpdater;
     }
 
     public void initialize(SerialPort serialPort, int baudRate) {
@@ -69,7 +78,7 @@ public class SerialCommunication {
                         if (newLineIndex != -1) {
                             String line = lastMsg.substring(0, newLineIndex);
                             fullConsole = String.format("%s%s", fullConsole, line);
-                            if (dataListener != null) {
+                            if (dataListener != null) { //TODO Auf Message umstellen
                                 JSONObject jsonObject = new JSONObject("{\"type\": \"unknown\", \"msg\": \"\"}");
                                 try {
                                     jsonObject = new JSONObject(line);
@@ -79,10 +88,27 @@ public class SerialCommunication {
                             lastMsg = lastMsg.substring(newLineIndex+1);
 
                             Message message = SerialParser.parseMessage(line);
-                            if (message != null &&
-                                    message.getType().equals(Message.TYPE_STATUS)
-                                    && message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
-                                connectListener.forEach(ConnectListener::connect);
+                            if (message != null) {
+                                if (message.getType().equals(Message.TYPE_STATUS)) {
+                                    if (message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
+                                        connectListener.forEach(ConnectListener::connect);
+                                    }
+                                } else if (message.getType().equals(Message.TYPE_LORA_MSG)) {
+                                    try {
+                                        JSONObject jsonObject = new JSONObject(message.getMsg());
+                                        Location location = Location.parsePayload(jsonObject.getString("payload"));
+                                        int rssi = jsonObject.getInt("rssi");
+                                        if (location != null) {
+                                            LoRaHeaderParser loRaHeaderParser = new LoRaHeaderParser(jsonObject.getString("header"));
+                                            String sourceAddress = loRaHeaderParser.getSourceAddressFormatted();
+
+                                            gpsUpdater.updateDevice(sourceAddress, location, rssi);
+                                        }
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+
+                                    }
+                                }
                             }
                         }
                     } while (newLineIndex != -1);

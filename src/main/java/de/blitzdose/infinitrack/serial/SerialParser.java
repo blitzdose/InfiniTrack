@@ -9,7 +9,12 @@ public class SerialParser {
     static Message parseMessage(String msg) {
         try {
             JSONObject jsonObject = new JSONObject(msg);
-            return new Message(jsonObject.getString("type"), jsonObject.getString("msg"));
+            try {
+                JSONObject messageJson = jsonObject.getJSONObject("msg");
+                return new Message(jsonObject.getString("type"), messageJson.toString());
+            } catch (JSONException ignored) {
+                return new Message(jsonObject.getString("type"), jsonObject.getString("msg"));
+            }
         } catch (JSONException ignored) {
             return null;
         }

@@ -3,14 +3,20 @@ package de.blitzdose.infinitrack.data.entities.device;
 import de.blitzdose.infinitrack.data.entities.AbstractEntity;
 import de.blitzdose.infinitrack.gps.GPSParser;
 
-import javax.persistence.Entity;
+import javax.persistence.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HexFormat;
 
 @Entity
-public class Location extends AbstractEntity {
+public class Location {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private long id;
+    @Version
+    private int version;
     private long timestamp;
     private float latitude;
     private float longitude;
@@ -21,6 +27,9 @@ public class Location extends AbstractEntity {
 
     public static Location parsePayload(String payloadHex) throws IOException {
         byte[] payload = HexFormat.of().parseHex(payloadHex);
+        if (payload.length <= 2) {
+            return null;
+        }
         ByteArrayInputStream payloadStream = new ByteArrayInputStream(payload);
 
         GPSParser gpsParser = new GPSParser(payloadStream);
@@ -93,6 +102,34 @@ public class Location extends AbstractEntity {
         this.pdop = pdop;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public long generateId() {
+        long generatedId = 0;
+        generatedId += timestamp;
+        generatedId += latitude * 100000;
+        generatedId += longitude * 100000;
+        generatedId += speed * 100000000;
+        generatedId += satelliteCount;
+        generatedId += altitude * 100;
+        generatedId += pdop * 1000;
+        return generatedId;
+    }
+
+    public int getVersion() {
+        return version;
+    }
+
+    public void setVersion(int version) {
+        this.version = version;
+    }
+
     @Override
     public String toString() {
         return "Timestamp (UTC): " + Instant.ofEpochMilli(timestamp).toString() +
@@ -102,5 +139,25 @@ public class Location extends AbstractEntity {
                 ", Satellites: " + satelliteCount +
                 ", Altitude: " + altitude +
                 ", PDOP: " + pdop;
+    }
+
+    @Override
+    public int hashCode() {
+        return (String.valueOf(timestamp) + latitude + longitude + speed + altitude + satelliteCount + pdop).hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof Location other)) {
+            return false;
+        }
+
+        return timestamp == other.timestamp &&
+                latitude == other.latitude &&
+                longitude == other.longitude &&
+                speed == other.speed &&
+                satelliteCount == other.satelliteCount &&
+                altitude == other.altitude &&
+                pdop == other.pdop;
     }
 }
