@@ -80,6 +80,7 @@ public class MapView extends VerticalLayout {
         sidebar.setPadding(false);
 
         sidebar.setWidth("auto");
+        sidebar.setMinWidth("320px");
         sidebar.setHeightFull();
         sidebar.addClassNames("sidebar");
         TextField searchField = new TextField();
@@ -159,7 +160,7 @@ public class MapView extends VerticalLayout {
         if (device.getLastLocation().getLatitude() == 0 && device.getLastLocation().getLongitude() == 0) {
             return;
         }
-        lmap.setCenter(new LCenter(device.getLastLocation().getLatitude(), device.getLastLocation().getLongitude(), 14));
+        lmap.setCenter(new LCenter(device.getLastLocation().getLatitude(), device.getLastLocation().getLongitude(), 18));
     }
 
     private void scrollToCard(Device device) {
@@ -252,8 +253,8 @@ public class MapView extends VerticalLayout {
         markerToDevice.clear();
 
         filteredDevices = devices.stream()
-                .filter(device -> device.getName().toLowerCase().contains(filter)
-                        || device.getAddress().toLowerCase().contains(filter))
+                .filter(device -> (device.getName().toLowerCase().contains(filter)
+                        || device.getAddress().toLowerCase().contains(filter)) && !device.getStatus().equals("Offline"))
                 .collect(Collectors.toList());
 
         List<LComponent> lComponents = lmap.getComponents().stream()

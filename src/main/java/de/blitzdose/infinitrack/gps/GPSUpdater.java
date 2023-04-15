@@ -10,7 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 import javax.transaction.Transactional;
+import java.util.List;
 import java.util.Optional;
+import java.util.Timer;
+import java.util.TimerTask;
 
 @ApplicationScope
 @SpringComponent
@@ -24,6 +27,7 @@ public class GPSUpdater {
     public GPSUpdater(@Autowired DeviceService deviceService, @Autowired LocationService locationService) {
         this.deviceService = deviceService;
         this.locationService = locationService;
+        this.startDeviceStatusUpdater();
     }
 
     @Transactional
@@ -42,8 +46,23 @@ public class GPSUpdater {
                 device.setLastLocation(location1);
             }
             device.setSignal(rssi);
+            device.setStatus("Connected");
             deviceService.update(device);
         }
+    }
+
+    private void startDeviceStatusUpdater() {
+        new Timer().schedule(new TimerTask() {
+            @Override
+            @Transactional
+            public void run() {
+                List<Device> deviceList = deviceService.listWithLocations();
+                deviceList.stream().filter(device -> device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis()).forEach(device -> {
+                    device.setStatus("Offline");
+                    deviceService.update(device);
+                });
+            }
+        }, 0, 5000);
     }
 
     public boolean isRecording() {

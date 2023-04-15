@@ -68,8 +68,9 @@ public class MainLayout extends AppLayout {
         baseStationSpan.getElement().setAttribute("theme", "badge error");
         baseStationSpan.getStyle().set("margin-left", "auto");
 
-        if (communication.isOpen()) {
+        if (communication.isConnected()) {
             baseStationSpan.getElement().setAttribute("theme", "badge success");
+            openConnection = true;
         }
         communication.addOnConnectListener(new SerialCommunication.ConnectListener() {
             @Override

@@ -15,9 +15,7 @@ import org.springframework.web.context.annotation.ApplicationScope;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 @ApplicationScope
 @SpringComponent
@@ -45,6 +43,8 @@ public class SerialCommunication {
     public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
     private final GPSUpdater gpsUpdater;
+
+    private boolean connected = false;
 
     public SerialCommunication(@Autowired GPSUpdater gpsUpdater) {
         this.gpsUpdater = gpsUpdater;
@@ -92,6 +92,7 @@ public class SerialCommunication {
                                 if (message.getType().equals(Message.TYPE_STATUS)) {
                                     if (message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
                                         connectListener.forEach(ConnectListener::connect);
+                                        connected = true;
                                     }
                                 } else if (message.getType().equals(Message.TYPE_LORA_MSG)) {
                                     try {
@@ -129,7 +130,15 @@ public class SerialCommunication {
 
     public void openConnection() {
         if (serialPort.openPort()) {
-            sendMessage(MSG_GET_READY);
+            new Timer().schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    if (connected) {
+                        this.cancel();
+                    }
+                    sendMessage(MSG_GET_READY);
+                }
+            }, 0, 2000);
         }
     }
 
@@ -138,6 +147,10 @@ public class SerialCommunication {
             return false;
         }
         return serialPort.isOpen();
+    }
+
+    public boolean isConnected() {
+        return connected && isOpen();
     }
 
     public void closeConnection() {
@@ -149,6 +162,7 @@ public class SerialCommunication {
         }
         serialPort.closePort();
         serialPort = null;
+        connected = false;
     }
 
     public String getConsole() {
