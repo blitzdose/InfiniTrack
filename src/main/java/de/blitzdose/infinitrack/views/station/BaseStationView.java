@@ -8,6 +8,7 @@ import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextArea;
@@ -46,6 +47,7 @@ public class BaseStationView extends Div {
             @Override
             public void onComponentEvent(PollEvent event) {
                 textArea.setValue(console);
+                textArea.getElement().executeJs("this.shadowRoot.querySelector(\"vaadin-input-container\").scrollTop = this.querySelector(\"textarea\").clientHeight");
                 statusSpan.setText(openConnection ? "Connected" : "Disconnected");
                 statusSpan.getElement().setAttribute("theme", "badge " + (openConnection ? "success" : "error"));
                 connectButton.setText(openConnection ? "Disconnect" : "Connect");
