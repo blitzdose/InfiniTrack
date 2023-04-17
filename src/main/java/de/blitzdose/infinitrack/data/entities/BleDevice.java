@@ -1,9 +1,8 @@
 package de.blitzdose.infinitrack.data.entities;
 
+import de.blitzdose.infinitrack.data.AddressFormatter;
 import org.json.JSONException;
 import org.json.JSONObject;
-
-import java.util.Locale;
 
 public class BleDevice {
     private String address;
@@ -21,16 +20,7 @@ public class BleDevice {
     }
 
     public String getAddressFormatted() {
-        StringBuilder builder = new StringBuilder();
-        char[] charArray = this.address.toCharArray();
-        for (int i = 0; i < charArray.length; i++) {
-            char c = charArray[i];
-            if (i != 0 && i % 2 == 0) {
-                builder.append(":");
-            }
-            builder.append(c);
-        }
-        return builder.toString().toUpperCase(Locale.ROOT);
+        return AddressFormatter.formatAddress(this.address);
     }
 
     public void setAddress(String address) {

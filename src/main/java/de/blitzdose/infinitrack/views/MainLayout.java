@@ -7,14 +7,11 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.dependency.Uses;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.dom.ThemeList;
 import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.PreserveOnRefresh;
-import com.vaadin.flow.server.PWA;
 import com.vaadin.flow.server.VaadinService;
 import com.vaadin.flow.theme.lumo.Lumo;
 import com.vaadin.flow.theme.lumo.LumoUtility;
@@ -45,12 +42,10 @@ public class MainLayout extends AppLayout {
 
         UI ui = UI.getCurrent();
         ui.setPollInterval(1000);
-        ui.addPollListener(new ComponentEventListener<PollEvent>() {
-            @Override
-            public void onComponentEvent(PollEvent event) {
-                baseStationSpan.getElement().setAttribute("theme", "badge " + (openConnection ? "success" : "error"));
-            }
-        });
+        ui.addPollListener((ComponentEventListener<PollEvent>) event ->
+                baseStationSpan
+                        .getElement()
+                        .setAttribute("theme", "badge " + (openConnection ? "success" : "error")));
     }
 
     private void addHeaderContent(SerialCommunication communication) {
@@ -66,25 +61,20 @@ public class MainLayout extends AppLayout {
 
         baseStationSpan = new Span("Base station");
         baseStationSpan.getElement().setAttribute("theme", "badge error");
+        baseStationSpan.setWidth("fit-content");
+        baseStationSpan.getStyle().set("position", "absolute");
         baseStationSpan.getStyle().set("margin-left", "auto");
+        baseStationSpan.getStyle().set("margin-right", "auto");
+        baseStationSpan.getStyle().set("left", "0");
+        baseStationSpan.getStyle().set("right", "0");
 
         if (communication.isConnected()) {
             baseStationSpan.getElement().setAttribute("theme", "badge success");
             openConnection = true;
         }
-        communication.addOnConnectListener(new SerialCommunication.ConnectListener() {
-            @Override
-            public void connect() {
-                openConnection = true;
-            }
-        });
+        communication.addOnConnectListener(() -> openConnection = true);
 
-        communication.addOnDisconnectListener(new SerialCommunication.DisconnectListener() {
-            @Override
-            public void disconnect() {
-                openConnection = false;
-            }
-        });
+        communication.addOnDisconnectListener(() -> openConnection = false);
 
         addToNavbar(baseStationSpan);
 
@@ -106,6 +96,7 @@ public class MainLayout extends AppLayout {
         } else {
             cookieDarkTheme = new Cookie("dark_theme", String.valueOf(themeList.contains(Lumo.DARK)));
             cookieDarkTheme.setPath(VaadinService.getCurrentRequest().getContextPath());
+            cookieDarkTheme.setMaxAge(Integer.MAX_VALUE);
             VaadinService.getCurrentResponse().addCookie(cookieDarkTheme);
         }
     }
@@ -127,7 +118,8 @@ public class MainLayout extends AppLayout {
             Cookie cookieDarkTheme = getCookieByName("dark_theme");
 
             if (cookieDarkTheme != null) {
-               cookieDarkTheme.setValue(String.valueOf(themeList.contains(Lumo.DARK)));
+                cookieDarkTheme.setValue(String.valueOf(themeList.contains(Lumo.DARK)));
+                cookieDarkTheme.setMaxAge(Integer.MAX_VALUE);
                 VaadinService.getCurrentResponse().addCookie(cookieDarkTheme);
             }
         });
@@ -167,9 +159,7 @@ public class MainLayout extends AppLayout {
     }
 
     private Footer createFooter() {
-        Footer layout = new Footer();
-
-        return layout;
+        return new Footer();
     }
 
     @Override

@@ -1,6 +1,5 @@
 package de.blitzdose.infinitrack.data.entities.device;
 
-import de.blitzdose.infinitrack.data.entities.AbstractEntity;
 import de.blitzdose.infinitrack.gps.GPSParser;
 
 import javax.persistence.*;
@@ -108,18 +107,6 @@ public class Location {
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public long generateId() {
-        long generatedId = 0;
-        generatedId += timestamp;
-        generatedId += latitude * 100000;
-        generatedId += longitude * 100000;
-        generatedId += speed * 100000000;
-        generatedId += satelliteCount;
-        generatedId += altitude * 100;
-        generatedId += pdop * 1000;
-        return generatedId;
     }
 
     public int getVersion() {

@@ -1,21 +1,22 @@
 package de.blitzdose.infinitrack.serial;
 
 import com.fazecast.jSerialComm.SerialPort;
-import com.fazecast.jSerialComm.SerialPortDataListener;
 import com.fazecast.jSerialComm.SerialPortDataListenerWithExceptions;
 import com.fazecast.jSerialComm.SerialPortEvent;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import de.blitzdose.infinitrack.data.entities.device.Location;
 import de.blitzdose.infinitrack.gps.GPSUpdater;
 import de.blitzdose.infinitrack.lora.LoRaHeaderParser;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 @ApplicationScope
 @SpringComponent
@@ -27,20 +28,6 @@ public class SerialCommunication {
 
     private String lastMsg = "";
     private String fullConsole = "";
-
-    public final static String TYPE_STATUS = "status";
-    public final static String MSG_GET_READY = "get_ready";
-    public final static String MSG_START_SCAN = "ble_start_scan";
-    public final static String MSG_STOP_SCAN = "ble_stop_scan";
-    public final static String TYPE_SCAN_RESULT = "ble_scan_result";
-    public final static String MSG_SCAN_STARTED = "ble_scan_started";
-    public final static String MSG_SCAN_STOPPED = "ble_scan_stopped";
-    public static final String MSG_BLE_CONNECT = "ble_connect:%s";
-    public static final String MSG_BLE_DATA_SEND = "ble_data_send";
-
-    public static final String MSG_UNKNOWN_ERROR = "unknown_error";
-
-    public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
     private final GPSUpdater gpsUpdater;
 
@@ -78,37 +65,33 @@ public class SerialCommunication {
                         if (newLineIndex != -1) {
                             String line = lastMsg.substring(0, newLineIndex);
                             fullConsole = String.format("%s%s", fullConsole, line);
-                            if (dataListener != null) { //TODO Auf Message umstellen
-                                JSONObject jsonObject = new JSONObject("{\"type\": \"unknown\", \"msg\": \"\"}");
-                                try {
-                                    jsonObject = new JSONObject(line);
-                                } catch (JSONException ignored) { }
-                                dataListener.dataReceived(jsonObject, fullConsole);
+
+                            Message message = Message.parseMessage(line);
+
+                            if (dataListener != null) {
+                                dataListener.dataReceived(message, fullConsole);
                             }
                             lastMsg = lastMsg.substring(newLineIndex+1);
 
-                            Message message = SerialParser.parseMessage(line);
-                            if (message != null) {
-                                if (message.getType().equals(Message.TYPE_STATUS)) {
-                                    if (message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
-                                        connectListener.forEach(ConnectListener::connect);
-                                        connected = true;
-                                    }
-                                } else if (message.getType().equals(Message.TYPE_LORA_MSG)) {
-                                    try {
-                                        JSONObject jsonObject = new JSONObject(message.getMsg());
-                                        Location location = Location.parsePayload(jsonObject.getString("payload"));
-                                        int rssi = jsonObject.getInt("rssi");
-                                        if (location != null) {
-                                            LoRaHeaderParser loRaHeaderParser = new LoRaHeaderParser(jsonObject.getString("header"));
-                                            String sourceAddress = loRaHeaderParser.getSourceAddressFormatted();
+                            if (message.getType().equals(Message.TYPE_STATUS)) {
+                                if (message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
+                                    connectListener.forEach(ConnectListener::connect);
+                                    connected = true;
+                                }
+                            } else if (message.getType().equals(Message.TYPE_LORA_MSG)) {
+                                try {
+                                    JSONObject jsonObject = new JSONObject(message.getMsg());
+                                    Location location = Location.parsePayload(jsonObject.getString("payload"));
+                                    int rssi = jsonObject.getInt("rssi");
+                                    if (location != null) {
+                                        LoRaHeaderParser loRaHeaderParser = new LoRaHeaderParser(jsonObject.getString("header"));
+                                        String sourceAddress = loRaHeaderParser.getSourceAddressFormatted();
 
-                                            gpsUpdater.updateDevice(sourceAddress, location, rssi);
-                                        }
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-
+                                        gpsUpdater.updateDevice(sourceAddress, location, rssi);
                                     }
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+
                                 }
                             }
                         }
@@ -136,7 +119,7 @@ public class SerialCommunication {
                     if (connected) {
                         this.cancel();
                     }
-                    sendMessage(MSG_GET_READY);
+                    sendMessage(Message.MSG_GET_READY);
                 }
             }, 0, 2000);
         }
@@ -169,14 +152,13 @@ public class SerialCommunication {
         return fullConsole;
     }
 
-    public boolean sendMessage(String msg) {
+    public void sendMessage(String msg) {
         if (serialPort == null || !serialPort.isOpen()) {
-            return false;
+            return;
         }
         msg = String.format("%s\r\n", msg);
         byte[] msgBytes = msg.getBytes(Charset.defaultCharset());
-        int bytesWritten = serialPort.writeBytes(msgBytes, msgBytes.length);
-        return bytesWritten != -1;
+        serialPort.writeBytes(msgBytes, msgBytes.length);
     }
 
     public void setOnDataListener(DataListener dataListener) {
@@ -194,7 +176,7 @@ public class SerialCommunication {
     @ApplicationScope
     @SpringComponent
     public interface DataListener {
-        void dataReceived(JSONObject msg, String console);
+        void dataReceived(Message msg, String console);
     }
 
     @ApplicationScope

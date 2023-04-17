@@ -4,7 +4,6 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.entities.device.Location;
 import de.blitzdose.infinitrack.data.services.DeviceService;
-import de.blitzdose.infinitrack.data.services.LocationRepository;
 import de.blitzdose.infinitrack.data.services.LocationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.annotation.ApplicationScope;
@@ -39,7 +38,6 @@ public class GPSUpdater {
         if (deviceOptional.isPresent()) {
             Device device = deviceOptional.get();
             Location location1 = locationService.update(location);
-            System.out.println("loc: " + location1);
             if (recording) {
                 device.addToLocationHistory(location1);
             } else {
@@ -57,10 +55,12 @@ public class GPSUpdater {
             @Transactional
             public void run() {
                 List<Device> deviceList = deviceService.listWithLocations();
-                deviceList.stream().filter(device -> device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis()).forEach(device -> {
-                    device.setStatus("Offline");
-                    deviceService.update(device);
-                });
+                deviceList.stream()
+                        .filter(device -> device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis())
+                        .forEach(device -> {
+                            device.setStatus("Offline");
+                            deviceService.update(device);
+                        });
             }
         }, 0, 5000);
     }

@@ -1,7 +1,10 @@
 package de.blitzdose.infinitrack.views.devices;
 
 import com.github.juchar.colorpicker.ColorPickerRaw;
-import com.vaadin.flow.component.*;
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.PollEvent;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -20,9 +23,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.map.configuration.Coordinate;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -41,21 +42,19 @@ import de.blitzdose.infinitrack.components.notification.SuccessNotification;
 import de.blitzdose.infinitrack.data.entities.BleDevice;
 import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.services.DeviceService;
+import de.blitzdose.infinitrack.serial.Message;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
 import org.apache.commons.lang3.StringUtils;
-import org.hibernate.Hibernate;
-import org.hibernate.Session;
-import org.hibernate.SessionBuilder;
-import org.hibernate.SessionFactory;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.orm.hibernate5.SessionFactoryUtils;
 import org.vaadin.olli.ClipboardHelper;
 
 import java.text.NumberFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 @PageTitle("Devices")
 @Route(value = "devices", layout = MainLayout.class)
@@ -117,7 +116,7 @@ public class DevicesView extends Div {
                 Button closeButton = new Button(new Icon("lumo", "cross"),
                         (e) -> {
                             addDeviceDialog.close();
-                            communication.sendMessage(SerialCommunication.MSG_STOP_SCAN);
+                            communication.sendMessage(Message.MSG_STOP_SCAN);
 
                         });
                 closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -148,9 +147,9 @@ public class DevicesView extends Div {
                     @Override
                     public void onComponentEvent(ItemClickEvent<BleDevice> event) {
                         BleDevice bleDevice = event.getItem();
-                        communication.sendMessage(SerialCommunication.MSG_STOP_SCAN);
+                        communication.sendMessage(Message.MSG_STOP_SCAN);
                         communication.setOnDataListener(null);
-                        communication.sendMessage(String.format(SerialCommunication.MSG_BLE_CONNECT, bleDevice.getAddress()));
+                        communication.sendMessage(String.format(Message.MSG_BLE_CONNECT, bleDevice.getAddress()));
                         addDeviceDialog.close();
 
                         Dialog waitDialog = new Dialog();
@@ -164,9 +163,9 @@ public class DevicesView extends Div {
 
                         communication.setOnDataListener(new SerialCommunication.DataListener() {
                             @Override
-                            public void dataReceived(JSONObject msg, String console) {
-                                if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
-                                    if (msg.getString("msg").equals(SerialCommunication.MSG_BLE_DATA_SEND)) {
+                            public void dataReceived(Message msg, String console) {
+                                if (msg.getType().equals(Message.TYPE_STATUS)) {
+                                    if (msg.getMsg().equals(Message.MSG_BLE_DATA_SEND)) {
                                         DevicesView.this.getUI().ifPresent(ui -> {
                                             ui.access(() -> {
                                                 waitDialog.close();
@@ -177,7 +176,7 @@ public class DevicesView extends Div {
                                                 new SuccessNotification().setText("Device added").open();
                                             });
                                         });
-                                    } else if (msg.getString("msg").equals(SerialCommunication.MSG_UNKNOWN_ERROR)) {
+                                    } else if (msg.getMsg().equals(Message.MSG_UNKNOWN_ERROR)) {
                                         DevicesView.this.getUI().ifPresent(ui -> {
                                             ui.access(() -> {
                                                 waitDialog.close();
@@ -203,7 +202,7 @@ public class DevicesView extends Div {
                 Button repeatScanButton = new Button("Repeat scan", click -> {
                     bleDevices.clear();
                     scanResults.setItems(bleDevices);
-                    communication.sendMessage(SerialCommunication.MSG_START_SCAN);
+                    communication.sendMessage(Message.MSG_START_SCAN);
                 });
                 repeatScanButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
                 repeatScanButton.getStyle().set("margin-right", "auto");
@@ -216,7 +215,7 @@ public class DevicesView extends Div {
                     @Override
                     public void onComponentEvent(PollEvent pollEvent) {
                         List<BleDevice> filteredBleDevices = bleDevices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
-                                bleDevice.getPayload().get("255").equals(SerialCommunication.BLE_SIGNATURE)).toList();
+                                bleDevice.getPayload().get("255").equals(Message.BLE_SIGNATURE)).toList();
                         scanResults.setItems(filteredBleDevices);
                     }
                 });
@@ -224,9 +223,9 @@ public class DevicesView extends Div {
 
                 communication.setOnDataListener(new SerialCommunication.DataListener() {
                     @Override
-                    public void dataReceived(JSONObject msg, String console) {
-                        if (msg.getString("type").equals(SerialCommunication.TYPE_SCAN_RESULT)) {
-                            JSONObject data = msg.getJSONObject("msg");
+                    public void dataReceived(Message msg, String console) {
+                        if (msg.getType().equals(Message.TYPE_SCAN_RESULT)) {
+                            JSONObject data = new JSONObject(msg.getMsg());
                             String address = data.getString("addr");
                             int rssi = data.getInt("rssi");
                             JSONObject payload = data.getJSONObject("payload");
@@ -243,8 +242,8 @@ public class DevicesView extends Div {
 
                             bleDevices.remove(bleDevice);
                             bleDevices.add(bleDevice);
-                        } else if (msg.getString("type").equals(SerialCommunication.TYPE_STATUS)) {
-                            if (msg.getString("msg").equals(SerialCommunication.MSG_SCAN_STOPPED)) {
+                        } else if (msg.getType().equals(Message.TYPE_STATUS)) {
+                            if (msg.getMsg().equals(Message.MSG_SCAN_STOPPED)) {
                                 DevicesView.this.getUI().ifPresent(ui -> {
                                     ui.access(() -> {
                                         progressBar.setVisible(false);
@@ -252,7 +251,7 @@ public class DevicesView extends Div {
                                         repeatScanButton.setEnabled(true);
                                     });
                                 });
-                            } else if (msg.getString("msg").equals(SerialCommunication.MSG_SCAN_STARTED)) {
+                            } else if (msg.getMsg().equals(Message.MSG_SCAN_STARTED)) {
                                 DevicesView.this.getUI().ifPresent(ui -> {
                                     ui.access(() -> {
                                         progressBar.setVisible(true);
@@ -265,7 +264,7 @@ public class DevicesView extends Div {
                     }
                 });
 
-                communication.sendMessage(SerialCommunication.MSG_START_SCAN);
+                communication.sendMessage(Message.MSG_START_SCAN);
             }
         });
         return addDeviceBtn;

@@ -1,14 +1,13 @@
 package de.blitzdose.infinitrack.data.services;
 
-import de.blitzdose.infinitrack.data.entities.device.Device;
 import de.blitzdose.infinitrack.data.entities.device.Location;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import javax.persistence.EntityManager;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -25,17 +24,14 @@ public class LocationService  {
     }
 
     public Location update(Location entity) {
-        Location existingLocation = repository.findByTimestampAndLatitudeAndLongitudeAndSpeedAndSatelliteCountAndAltitudeAndPdop(entity.getTimestamp(),
+        Location existingLocation = repository.findByAllAttributes(entity.getTimestamp(),
                 entity.getLatitude(),
                 entity.getLongitude(),
                 entity.getSpeed(),
                 entity.getSatelliteCount(),
                 entity.getAltitude(),
                 entity.getPdop());
-        if (existingLocation != null) {
-            return repository.save(existingLocation);
-        }
-        return repository.save(entity);
+        return repository.save(Objects.requireNonNullElse(existingLocation, entity));
     }
 
     public void delete(Long id) {
