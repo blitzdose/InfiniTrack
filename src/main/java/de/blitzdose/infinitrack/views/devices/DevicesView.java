@@ -1,14 +1,9 @@
 package de.blitzdose.infinitrack.views.devices;
 
-import com.github.juchar.colorpicker.ColorPickerRaw;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.PollEvent;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.ComboBox;
-import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -16,15 +11,12 @@ import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.SelectionMode;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.dataview.GridListDataView;
 import com.vaadin.flow.component.gridpro.GridPro;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
@@ -32,7 +24,6 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.NumberRenderer;
 import com.vaadin.flow.data.renderer.TextRenderer;
-import com.vaadin.flow.data.selection.SelectionEvent;
 import com.vaadin.flow.data.selection.SelectionListener;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
@@ -45,13 +36,12 @@ import de.blitzdose.infinitrack.data.services.DeviceService;
 import de.blitzdose.infinitrack.serial.Message;
 import de.blitzdose.infinitrack.serial.SerialCommunication;
 import de.blitzdose.infinitrack.views.MainLayout;
-import org.apache.commons.lang3.StringUtils;
+import de.blitzdose.infinitrack.views.devices.dialogs.AddDeviceDialog;
+import de.blitzdose.infinitrack.views.devices.dialogs.DeviceDialog;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.vaadin.olli.ClipboardHelper;
 
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -62,30 +52,36 @@ import java.util.Optional;
 @JsModule("@datadobi/color-picker/color-picker.js")
 public class DevicesView extends Div {
 
-    SerialCommunication communication;
-    private GridPro<Device> grid;
-    GridListDataView<Device> gridListDataView;
-
-    DeviceService deviceService;
+    private final DeviceService deviceService;
+    private final SerialCommunication communication;
+    private final GridPro<Device> grid = new GridPro<>();
+    private GridListDataView<Device> gridListDataView;
 
     List<Device> devices;
+
+    private final TextField searchField = new TextField();
+    private final Button addDeviceButton = new Button("Add Device", new Icon(VaadinIcon.PLUS));
 
     public DevicesView(@Autowired SerialCommunication communication, DeviceService deviceService) {
         this.deviceService = deviceService;
         this.communication = communication;
         addClassName("devices-view");
         setSizeFull();
-        grid = createGrid();
 
-        TextField searchField = createSearchField();
-        addFilterToGrid(searchField);
+        devices = getDevices();
 
-        Button addDeviceButton = createAddDeviceButton();
-
-        createLayout(searchField, addDeviceButton);
+        createView();
     }
 
-    private void createLayout(TextField searchField, Button addDeviceButton) {
+    private void createView() {
+        createGrid();
+        createSearchField();
+
+        createAddDeviceButton();
+        createLayout();
+    }
+
+    private void createLayout() {
         HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, addDeviceButton);
         horizontalLayout.setWidth("100%");
 
@@ -95,182 +91,112 @@ public class DevicesView extends Div {
         add(layout);
     }
 
-    private Button createAddDeviceButton() {
-        Button addDeviceBtn = new Button("Add Device", new Icon(VaadinIcon.PLUS));
-        addDeviceBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        addDeviceBtn.setMinWidth("auto");
-        addDeviceBtn.addClickListener(new ComponentEventListener<ClickEvent<Button>>() {
-            @Override
-            public void onComponentEvent(ClickEvent<Button> event) {
-                if (!communication.isOpen()) {
-                    new ErrorNotification().setText("Not connected to base station").open();
-                    return;
-                }
-
-                Dialog addDeviceDialog = new Dialog();
-
-                addDeviceDialog.setHeaderTitle("Add device");
-                addDeviceDialog.setCloseOnEsc(false);
-                addDeviceDialog.setCloseOnOutsideClick(false);
-
-                Button closeButton = new Button(new Icon("lumo", "cross"),
-                        (e) -> {
-                            addDeviceDialog.close();
-                            communication.sendMessage(Message.MSG_STOP_SCAN);
-
-                        });
-                closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-                addDeviceDialog.getHeader().add(closeButton);
-
-                VerticalLayout dialogLayout = new VerticalLayout();
-
-                ProgressBar progressBar = new ProgressBar();
-                progressBar.setIndeterminate(true);
-                progressBar.setVisible(false);
-
-                Div progressBarLabel = new Div();
-                progressBarLabel.setText("Scanning for devices...");
-                progressBarLabel.setVisible(false);
-
-                dialogLayout.add(progressBarLabel, progressBar);
-
-                ArrayList<BleDevice> bleDevices = new ArrayList<>();
-
-                Grid<BleDevice> scanResults = new Grid<>(BleDevice.class, false);
-                scanResults.addColumn(BleDevice::getName).setHeader("Name").setAutoWidth(true);
-                scanResults.addColumn(BleDevice::getAddressFormatted).setHeader("Address").setAutoWidth(true);
-                scanResults.addColumn(BleDevice::getRssi).setHeader("Signal (RSSI)").setAutoWidth(true).setFlexGrow(0);
-
-                scanResults.setItems(bleDevices);
-
-                scanResults.addItemClickListener(new ComponentEventListener<ItemClickEvent<BleDevice>>() {
-                    @Override
-                    public void onComponentEvent(ItemClickEvent<BleDevice> event) {
-                        BleDevice bleDevice = event.getItem();
-                        communication.sendMessage(Message.MSG_STOP_SCAN);
-                        communication.setOnDataListener(null);
-                        communication.sendMessage(String.format(Message.MSG_BLE_CONNECT, bleDevice.getAddress()));
-                        addDeviceDialog.close();
-
-                        Dialog waitDialog = new Dialog();
-                        ProgressBar connectingProgressBar = new ProgressBar();
-                        connectingProgressBar.setIndeterminate(true);
-                        waitDialog.setHeaderTitle("Please wait...");
-                        waitDialog.add(connectingProgressBar);
-                        waitDialog.setCloseOnOutsideClick(false);
-                        waitDialog.setCloseOnEsc(false);
-                        waitDialog.open();
-
-                        communication.setOnDataListener(new SerialCommunication.DataListener() {
-                            @Override
-                            public void dataReceived(Message msg, String console) {
-                                if (msg.getType().equals(Message.TYPE_STATUS)) {
-                                    if (msg.getMsg().equals(Message.MSG_BLE_DATA_SEND)) {
-                                        DevicesView.this.getUI().ifPresent(ui -> {
-                                            ui.access(() -> {
-                                                waitDialog.close();
-                                                communication.setOnDataListener(null);
-
-                                                saveDevice(createDevice("New Device", bleDevice.getAddressFormatted(), "Offline"));
-
-                                                new SuccessNotification().setText("Device added").open();
-                                            });
-                                        });
-                                    } else if (msg.getMsg().equals(Message.MSG_UNKNOWN_ERROR)) {
-                                        DevicesView.this.getUI().ifPresent(ui -> {
-                                            ui.access(() -> {
-                                                waitDialog.close();
-                                                communication.setOnDataListener(null);
-
-                                                new ErrorNotification().setText("Error while communicating. Please try again.").open();
-                                            });
-                                        });
-                                    }
-                                }
-                            }
-                        });
-                    }
-                });
-
-                dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
-                dialogLayout.getStyle().set("min-width", "38rem").set("max-width", "100%");
-                dialogLayout.setSpacing(false);
-                dialogLayout.setPadding(false);
-
-                addDeviceDialog.add(dialogLayout, scanResults);
-
-                Button repeatScanButton = new Button("Repeat scan", click -> {
-                    bleDevices.clear();
-                    scanResults.setItems(bleDevices);
-                    communication.sendMessage(Message.MSG_START_SCAN);
-                });
-                repeatScanButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-                repeatScanButton.getStyle().set("margin-right", "auto");
-                repeatScanButton.setEnabled(false);
-                addDeviceDialog.getFooter().add(repeatScanButton);
-
-                addDeviceDialog.open();
-
-                UI.getCurrent().addPollListener(new ComponentEventListener<PollEvent>() {
-                    @Override
-                    public void onComponentEvent(PollEvent pollEvent) {
-                        List<BleDevice> filteredBleDevices = bleDevices.stream().filter(bleDevice -> bleDevice.getPayload().keySet().contains("255") &&
-                                bleDevice.getPayload().get("255").equals(Message.BLE_SIGNATURE)).toList();
-                        scanResults.setItems(filteredBleDevices);
-                    }
-                });
-                UI.getCurrent().setPollInterval(1000);
-
-                communication.setOnDataListener(new SerialCommunication.DataListener() {
-                    @Override
-                    public void dataReceived(Message msg, String console) {
-                        if (msg.getType().equals(Message.TYPE_SCAN_RESULT)) {
-                            JSONObject data = new JSONObject(msg.getMsg());
-                            String address = data.getString("addr");
-                            int rssi = data.getInt("rssi");
-                            JSONObject payload = data.getJSONObject("payload");
-
-                            BleDevice bleDevice = new BleDevice(address, rssi);
-                            bleDevice.setPayload(payload);
-                            if (payload.keySet().contains("9")) {
-                                bleDevice.setNameHEX(payload.getString("9"));
-                            }
-
-                            bleDevices.stream()
-                                    .filter(bleDevice1 -> bleDevice1.equals(bleDevice))
-                                    .forEach(bleDevice::mergeFrom);
-
-                            bleDevices.remove(bleDevice);
-                            bleDevices.add(bleDevice);
-                        } else if (msg.getType().equals(Message.TYPE_STATUS)) {
-                            if (msg.getMsg().equals(Message.MSG_SCAN_STOPPED)) {
-                                DevicesView.this.getUI().ifPresent(ui -> {
-                                    ui.access(() -> {
-                                        progressBar.setVisible(false);
-                                        progressBarLabel.setVisible(false);
-                                        repeatScanButton.setEnabled(true);
-                                    });
-                                });
-                            } else if (msg.getMsg().equals(Message.MSG_SCAN_STARTED)) {
-                                DevicesView.this.getUI().ifPresent(ui -> {
-                                    ui.access(() -> {
-                                        progressBar.setVisible(true);
-                                        progressBarLabel.setVisible(true);
-                                        repeatScanButton.setEnabled(false);
-                                    });
-                                });
-                            }
-                        }
-                    }
-                });
-
-                communication.sendMessage(Message.MSG_START_SCAN);
+    private void createAddDeviceButton() {
+        addDeviceButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        addDeviceButton.setMinWidth("auto");
+        addDeviceButton.addClickListener((ComponentEventListener<ClickEvent<Button>>) event -> {
+            if (!communication.isOpen()) {
+                new ErrorNotification().setText("Not connected to base station").open();
+                return;
             }
+            addDevice();
         });
-        return addDeviceBtn;
     }
 
-    private void addFilterToGrid(TextField searchField) {
+    private void addDevice() {
+        AddDeviceDialog addDeviceDialog = new AddDeviceDialog()
+                .setCloseListener(() -> communication.sendMessage(Message.MSG_STOP_SCAN))
+                .setResultSelectedListener((dialog, bleDevice) -> {
+                    dialog.close();
+                    handleBleDeviceResult(bleDevice);
+                })
+
+                .setRepeatScanListener(() -> communication.sendMessage(Message.MSG_START_SCAN));
+        addDeviceDialog.show();
+
+        communication.setOnDataListener((msg, console) -> {
+            if (msg.type().equals(Message.TYPE_SCAN_RESULT)) {
+                BleDevice bleDevice = parseBleDevice(msg);
+                addDeviceDialog.updateBleDevices(bleDevice);
+
+            } else if (msg.type().equals(Message.TYPE_STATUS)) {
+                if (msg.msg().equals(Message.MSG_SCAN_STOPPED)) {
+                    DevicesView.this.getUI().ifPresent(ui -> ui.access(addDeviceDialog::setScanStopped));
+
+                } else if (msg.msg().equals(Message.MSG_SCAN_STARTED)) {
+                    DevicesView.this.getUI().ifPresent(ui -> ui.access(addDeviceDialog::setScanRunning));
+                }
+            }
+        });
+
+        communication.sendMessage(Message.MSG_START_SCAN);
+    }
+
+    private void handleBleDeviceResult(BleDevice bleDevice) {
+        Dialog waitDialog = createWaitDialog();
+
+        communication.sendMessage(Message.MSG_STOP_SCAN);
+        communication.setOnDataListener(null);
+
+        communication.setOnDataListener((msg, console) -> {
+            if (msg.type().equals(Message.TYPE_STATUS)) {
+                if (msg.msg().equals(Message.MSG_BLE_DATA_SEND)) {
+                    showSuccessCreatingDevice(bleDevice, waitDialog);
+                } else if (msg.msg().equals(Message.MSG_UNKNOWN_ERROR)) {
+                    showErrorCreatingDevice(waitDialog);
+                }
+            }
+        });
+        communication.sendMessage(String.format(Message.MSG_BLE_CONNECT, bleDevice.getAddress()));
+    }
+
+    private void showSuccessCreatingDevice(BleDevice bleDevice, Dialog waitDialog) {
+        DevicesView.this.getUI().ifPresent(ui -> ui.access(() -> {
+            waitDialog.close();
+            communication.setOnDataListener(null);
+
+            saveDevice(createDevice(bleDevice.getAddressFormatted()));
+
+            new SuccessNotification().setText("Device added").open();
+        }));
+    }
+
+    private void showErrorCreatingDevice(Dialog waitDialog) {
+        DevicesView.this.getUI().ifPresent(ui -> ui.access(() -> {
+            waitDialog.close();
+            communication.setOnDataListener(null);
+
+            new ErrorNotification().setText("Error while communicating. Please try again.").open();
+        }));
+    }
+
+    private Dialog createWaitDialog() {
+        Dialog waitDialog = new Dialog();
+        ProgressBar connectingProgressBar = new ProgressBar();
+        connectingProgressBar.setIndeterminate(true);
+        waitDialog.setHeaderTitle("Please wait...");
+        waitDialog.add(connectingProgressBar);
+        waitDialog.setCloseOnOutsideClick(false);
+        waitDialog.setCloseOnEsc(false);
+        waitDialog.open();
+        return waitDialog;
+    }
+
+    private BleDevice parseBleDevice(Message msg) {
+        JSONObject data = new JSONObject(msg.msg());
+        String address = data.getString("addr");
+        int rssi = data.getInt("rssi");
+        JSONObject payload = data.getJSONObject("payload");
+
+        BleDevice bleDevice = new BleDevice(address, rssi);
+        bleDevice.setPayload(payload);
+        if (payload.keySet().contains("9")) {
+            bleDevice.setNameHEX(payload.getString("9"));
+        }
+        return bleDevice;
+    }
+
+    private void addFilterToGrid() {
         gridListDataView.addFilter(device -> {
             String searchTerm = searchField.getValue().trim();
 
@@ -287,181 +213,44 @@ public class DevicesView extends Div {
         });
     }
 
-    private TextField createSearchField() {
-        TextField searchField = new TextField();
+    private void createSearchField() {
         searchField.setWidth("100%");
         searchField.setPlaceholder("Search");
         searchField.setPrefixComponent(new Icon(VaadinIcon.SEARCH));
         searchField.setValueChangeMode(ValueChangeMode.EAGER);
         searchField.addValueChangeListener(e -> gridListDataView.refreshAll());
-        return searchField;
     }
 
-    private GridPro<Device> createGrid() {
-        GridPro<Device> grid = createGridComponent();
+    private void createGrid() {
+        createGridComponent();
         addColumnsToGrid();
-        return grid;
+        addFilterToGrid();
     }
 
-    private GridPro<Device> createGridComponent() {
-        grid = new GridPro<>();
+    private void createGridComponent() {
         grid.setSelectionMode(SelectionMode.SINGLE);
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_COLUMN_BORDERS);
         grid.setWidthFull();
 
-        devices = getDevices();
         gridListDataView = grid.setItems(devices);
 
-        grid.addSelectionListener(new SelectionListener<Grid<Device>, Device>() {
-            @Override
-            public void selectionChange(SelectionEvent<Grid<Device>, Device> selectionEvent) {
-                if (selectionEvent.getFirstSelectedItem().isPresent()) {
-                    Device device = selectionEvent.getFirstSelectedItem().get();
-                    selectionEvent.getSource().deselectAll();
-                    showDeviceDialog(device);
-                }
+        grid.addSelectionListener((SelectionListener<Grid<Device>, Device>) selectionEvent -> {
+            if (selectionEvent.getFirstSelectedItem().isPresent()) {
+                Device device = selectionEvent.getFirstSelectedItem().get();
+                handleDeviceClick(device);
+                selectionEvent.getSource().deselectAll();
             }
         });
-        return grid;
     }
 
-    private void showDeviceDialog(Device device) {
-        Dialog deviceDialog = new Dialog();
-        Span span = new Span();
-        span.setText(device.getStatus());
-        span.getElement().setAttribute("theme", "badge " + (device.getStatus().equalsIgnoreCase("connected") ? "success" : "error"));
-        deviceDialog.setHeaderTitle(String.format("Device %d", device.getId()));
-
-        VerticalLayout dialogLayout = new VerticalLayout();
-
-        dialogLayout.add(span);
-
-        TextField nameTextField = new TextField("Name");
-        nameTextField.setValue(device.getName());
-        dialogLayout.add(nameTextField);;
-
-        HorizontalLayout colorLayout = new HorizontalLayout();
-
-        TextField colorTextField = new TextField("Color");
-        colorTextField.setValue(device.getColor());
-        colorTextField.getStyle().set("flex-grow", "1");
-        colorLayout.add(colorTextField);
-
-        Icon icon = new Icon(VaadinIcon.CIRCLE);
-        icon.setColor(device.getColor());
-        icon.getStyle().set("align-self", "end");
-        icon.getStyle().set("margin", "var(--lumo-space-xs) 0");
-        icon.getStyle().set("height", "36px");
-        icon.getStyle().set("width", "36px");
-
-        icon.addClickListener(new ComponentEventListener<ClickEvent<Icon>>() {
-            @Override
-            public void onComponentEvent(ClickEvent<Icon> iconClickEvent) {
-                Dialog dialog = new Dialog();
-
-                ColorPickerRaw colorPicker = new ColorPickerRaw(colorTextField.getValue(), colorTextField.getValue());
-                colorPicker.setHslEnabled(false);
-                colorPicker.setRgbEnabled(false);
-                colorPicker.setAlphaEnabled(false);
-
-                dialog.add(colorPicker);
-
-                Button saveButton = new Button("Save");
-                saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-                saveButton.addClickListener(clickEvent -> {
-                    colorTextField.setValue(colorPicker.getValue());
-                    dialog.close();
-                });
-
-                Button cancelButton = new Button("Cancel");
-                cancelButton.addClickListener(clickEvent -> dialog.close());
-                dialog.getFooter().add(cancelButton);
-                dialog.getFooter().add(saveButton);
-                dialog.open();
-            }
-        });
-
-
-        colorTextField.addValueChangeListener(event -> icon.setColor(event.getValue()));
-        colorTextField.setValueChangeMode(ValueChangeMode.EAGER);
-
-        colorLayout.add(icon);
-        dialogLayout.add(colorLayout);
-
-        TextField addressTextField = new TextField("Address");
-        addressTextField.setReadOnly(true);
-        addressTextField.setValue(device.getAddress());
-        dialogLayout.add(addressTextField);
-
-        TextField lastLocationTextField = new TextField("Last known location");
-        lastLocationTextField.setReadOnly(true);
-        lastLocationTextField.setValue(device.getLastLocation() != null ? String.format(Locale.ROOT, "%f, %f", device.getLastLocation().getLatitude(), device.getLastLocation().getLatitude()) : "Unknown");
-        lastLocationTextField.setWidthFull();
-        Span copyIcon = new Span();
-        copyIcon.setClassName("la la-copy");
-        Button button = new Button("Copy to clipboard", copyIcon);
-        ClipboardHelper clipboardHelper = new ClipboardHelper(lastLocationTextField.getValue(), button);
-        clipboardHelper.getElement().addEventListener("click", event -> {
-            Notification.show("Copied to clipboard");
-        });
-        HorizontalLayout horizontalLayout = new HorizontalLayout(lastLocationTextField, clipboardHelper);
-        horizontalLayout.setAlignItems(FlexComponent.Alignment.END);
-        dialogLayout.add(horizontalLayout);
-        //lastLocationTextField.getElement().addEventListener("click", clickEvent -> {
-        //    ClientsideClipboard.writeToClipboard(lastLocationTextField.getValue(), successful ->
-        //            Notification.show(successful ? "Copied to clipboard" : "Could not write to clipboard")
-        //    );
-//
-        //});
-        //dialogLayout.add(lastLocationTextField);
-
-        dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
-        dialogLayout.getStyle().set("min-width", "28rem").set("max-width", "100%");
-        dialogLayout.setSpacing(false);
-        dialogLayout.setPadding(false);
-
-        deviceDialog.add(dialogLayout);
-
-
-        Button closeButton = new Button(new Icon("lumo", "cross"),
-                (e) -> deviceDialog.close());
-        closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        deviceDialog.getHeader().add(closeButton);
-
-
-        Button saveButton = new Button("Save", e -> {
-            device.setName(nameTextField.getValue());
-            device.setColor(colorTextField.getValue());
+    private void handleDeviceClick(Device clickedDevice) {
+        new DeviceDialog(clickedDevice).setSaveListener((deviceDialog, device) -> {
             saveDevice(device);
             deviceDialog.close();
-        });
-        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-
-        Button deleteButton = new Button("Delete", click -> {
-            ConfirmDialog confirmDialog = new ConfirmDialog();
-            confirmDialog.setHeader(String.format("Delete device %d?", device.getId()));
-            confirmDialog.setText(
-                    "Are you sure you want to delete the Device? This cannot be undone.");
-
-            confirmDialog.setRejectable(true);
-            confirmDialog.setRejectText("No");
-            confirmDialog.addRejectListener(event -> confirmDialog.close());
-
-            confirmDialog.setConfirmText("Yes");
-            confirmDialog.addConfirmListener(event -> {
-                deleteDevice(device);
-                deviceDialog.close();
-            });
-
-            confirmDialog.open();
-        });
-        deleteButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
-        deleteButton.getStyle().set("margin-right", "auto");
-
-        deviceDialog.getFooter().add(deleteButton);
-        deviceDialog.getFooter().add(saveButton);
-
-        deviceDialog.open();
+        }).setDeleteListener((deviceDialog, device) -> {
+            deleteDevice(device);
+            deviceDialog.close();
+        }).show();
     }
 
     private void saveDevice(Device device) {
@@ -537,24 +326,16 @@ public class DevicesView extends Div {
         })).setComparator(Device::getStatus).setHeader("Status");
     }
 
-    private boolean areStatusesEqual(Device device, ComboBox<String> statusFilter) {
-        String statusFilterValue = statusFilter.getValue();
-        if (statusFilterValue != null) {
-            return StringUtils.equals(device.getStatus(), statusFilterValue);
-        }
-        return true;
-    }
-
     private List<Device> getDevices() {
         return deviceService.list();
     }
 
-    private Device createDevice(String name, String address, String status) {
+    private Device createDevice(String address) {
         Device c = new Device();
-        c.setName(name);
+        c.setName("New Device");
         c.setAddress(address);
         c.setColor("#000000");
-        c.setStatus(status);
+        c.setStatus("Offline");
 
         deviceService.update(c);
 
@@ -565,4 +346,4 @@ public class DevicesView extends Div {
         return value.toLowerCase().contains(searchTerm.toLowerCase());
     }
 
-};
+}

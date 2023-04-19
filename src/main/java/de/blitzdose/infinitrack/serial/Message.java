@@ -3,7 +3,7 @@ package de.blitzdose.infinitrack.serial;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class Message {
+public record Message(String type, String msg) {
 
     public final static String TYPE_UNKNOWN = "unknown";
     public final static String TYPE_STATUS = "status";
@@ -22,14 +22,6 @@ public class Message {
 
     public final static String BLE_SIGNATURE = "4954496e66696e69747261636b4d6f64";
 
-    private String type;
-    private String msg;
-
-    public Message(String type, String msg) {
-        this.type = type;
-        this.msg = msg;
-    }
-
     public static Message parseMessage(String msg) {
         try {
             JSONObject jsonObject = new JSONObject(msg);
@@ -42,21 +34,5 @@ public class Message {
         } catch (JSONException ignored) {
             return new Message(Message.TYPE_UNKNOWN, "");
         }
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public String getMsg() {
-        return msg;
-    }
-
-    public void setMsg(String msg) {
-        this.msg = msg;
     }
 }

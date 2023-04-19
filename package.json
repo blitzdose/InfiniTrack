@@ -2,7 +2,7 @@
   "name": "no-name",
   "license": "UNLICENSED",
   "dependencies": {
-    "@datadobi/color-picker": "2.0.0-beta.4-datadobi7",
+    "@datadobi/color-picker": "2.0.0-beta.4-datadobi8",
     "@polymer/iron-icon": "3.0.1",
     "@polymer/iron-iconset-svg": "3.0.1",
     "@polymer/iron-list": "3.1.0",
@@ -285,7 +285,7 @@
       "workbox-core": "6.5.4",
       "workbox-precaching": "6.5.4"
     },
-    "hash": "83e3f55e54326619525ffdc0f004d704dc2df46999086d4e39822c20e4eeaeb0"
+    "hash": "3608500b407dc949e6d3478cd9393cb14a4ac980773cae6d82c4727a2aa23e59"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -359,10 +359,7 @@
     "lit": "$lit",
     "@polymer/polymer": "$@polymer/polymer",
     "proj4": "$proj4",
-    "line-awesome": "$line-awesome",
-    "@vaadin-component-factory/vcf-nav": "$@vaadin-component-factory/vcf-nav",
     "date-fns": "$date-fns",
-    "@datadobi/color-picker": "$@datadobi/color-picker",
     "rbush": "$rbush",
     "leaflet": "$leaflet",
     "@polymer/iron-icon": "$@polymer/iron-icon",
@@ -411,6 +408,9 @@
     "@vaadin/vaadin-cookie-consent": "$@vaadin/vaadin-cookie-consent",
     "@vaadin/vaadin-crud": "$@vaadin/vaadin-crud",
     "@vaadin/vaadin-grid-pro": "$@vaadin/vaadin-grid-pro",
-    "@vaadin/vaadin-rich-text-editor": "$@vaadin/vaadin-rich-text-editor"
+    "@vaadin/vaadin-rich-text-editor": "$@vaadin/vaadin-rich-text-editor",
+    "line-awesome": "$line-awesome",
+    "@vaadin-component-factory/vcf-nav": "$@vaadin-component-factory/vcf-nav",
+    "@datadobi/color-picker": "$@datadobi/color-picker"
   }
 }

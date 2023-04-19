@@ -1,6 +1,6 @@
 package de.blitzdose.infinitrack.views;
 
-
+import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.PollEvent;
 import com.vaadin.flow.component.UI;
@@ -30,125 +30,44 @@ import javax.servlet.http.Cookie;
  */
 public class MainLayout extends AppLayout {
 
-    private H2 viewTitle;
+    private final SerialCommunication communication;
 
-    private Span baseStationSpan;
+    private final H2 viewTitle = new H2();
+
+    private final Span baseStationSpan = new Span("Base station");
+
+    private final Button themeSwitchButton = new Button();
+
     private boolean openConnection = false;
 
     public MainLayout(@Autowired SerialCommunication communication) {
+        this.communication = communication;
+
+        createView();
+        registerPollListener();
+    }
+
+    private void createView() {
         setPrimarySection(Section.DRAWER);
-        addDrawerContent();
-        addHeaderContent(communication);
-
-        UI ui = UI.getCurrent();
-        ui.setPollInterval(1000);
-        ui.addPollListener((ComponentEventListener<PollEvent>) event ->
-                baseStationSpan
-                        .getElement()
-                        .setAttribute("theme", "badge " + (openConnection ? "success" : "error")));
-    }
-
-    private void addHeaderContent(SerialCommunication communication) {
-        DrawerToggle toggle = new DrawerToggle();
-        toggle.getElement().setAttribute("aria-label", "Menu toggle");
-
-        viewTitle = new H2();
-        viewTitle.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
-
-        addToNavbar(true, toggle, viewTitle);
-
+        createDrawer();
+        createHeader();
         setTheme();
-
-        baseStationSpan = new Span("Base station");
-        baseStationSpan.getElement().setAttribute("theme", "badge error");
-        baseStationSpan.setWidth("fit-content");
-        baseStationSpan.getStyle().set("position", "absolute");
-        baseStationSpan.getStyle().set("margin-left", "auto");
-        baseStationSpan.getStyle().set("margin-right", "auto");
-        baseStationSpan.getStyle().set("left", "0");
-        baseStationSpan.getStyle().set("right", "0");
-
-        if (communication.isConnected()) {
-            baseStationSpan.getElement().setAttribute("theme", "badge success");
-            openConnection = true;
-        }
-        communication.addOnConnectListener(() -> openConnection = true);
-
-        communication.addOnDisconnectListener(() -> openConnection = false);
-
-        addToNavbar(baseStationSpan);
-
-        Button button = createThemeSwitchButton();
-        addToNavbar(true, button);
     }
 
-    private void setTheme() {
-        Cookie cookieDarkTheme = getCookieByName("dark_theme");
-
-        ThemeList themeList = UI.getCurrent().getElement().getThemeList();
-        if (cookieDarkTheme != null) {
-            boolean darkTheme = Boolean.parseBoolean(cookieDarkTheme.getValue());
-            if (darkTheme) {
-                themeList.add(Lumo.DARK);
-            } else {
-                themeList.remove(Lumo.DARK);
-            }
-        } else {
-            cookieDarkTheme = new Cookie("dark_theme", String.valueOf(themeList.contains(Lumo.DARK)));
-            cookieDarkTheme.setPath(VaadinService.getCurrentRequest().getContextPath());
-            cookieDarkTheme.setMaxAge(Integer.MAX_VALUE);
-            VaadinService.getCurrentResponse().addCookie(cookieDarkTheme);
-        }
+    private void createDrawer() {
+        Header header = createDrawerHeader();
+        Scroller scroller = new Scroller(createDrawerNavigation());
+        Footer footer = createDrawerFooter();
+        addToDrawer(header, scroller, footer);
     }
 
-    private Button createThemeSwitchButton() {
-        Button button = new Button("Dark Mode", click -> {
-            ThemeList themeList = UI.getCurrent().getElement().getThemeList();
-
-            if (themeList.contains(Lumo.DARK)) {
-                themeList.remove(Lumo.DARK);
-                click.getSource().setIcon(VaadinIcon.MOON_O.create());
-                click.getSource().setText("Dark Mode");
-            } else {
-                themeList.add(Lumo.DARK);
-                click.getSource().setIcon(VaadinIcon.SUN_O.create());
-                click.getSource().setText("Light Mode");
-            }
-
-            Cookie cookieDarkTheme = getCookieByName("dark_theme");
-
-            if (cookieDarkTheme != null) {
-                cookieDarkTheme.setValue(String.valueOf(themeList.contains(Lumo.DARK)));
-                cookieDarkTheme.setMaxAge(Integer.MAX_VALUE);
-                VaadinService.getCurrentResponse().addCookie(cookieDarkTheme);
-            }
-        });
-        button.getStyle().set("margin-left", "auto");
-        button.getStyle().set("margin-right", "16px");
-
-        ThemeList themeList = UI.getCurrent().getElement().getThemeList();
-
-        button.setIcon(VaadinIcon.MOON_O.create());
-        if (themeList.contains(Lumo.DARK)) {
-            button.setIcon(VaadinIcon.SUN_O.create());
-            button.setText("Light Mode");
-        }
-        return button;
-    }
-
-    private void addDrawerContent() {
+    private Header createDrawerHeader() {
         H1 appName = new H1("InfiniTrack");
         appName.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
-        Header header = new Header(appName);
-
-        Scroller scroller = new Scroller(createNavigation());
-
-        addToDrawer(header, scroller, createFooter());
+        return new Header(appName);
     }
 
-    private AppNav createNavigation() {
-        // AppNav is not yet an official component.
-        // For documentation, visit https://github.com/vaadin/vcf-nav#readme
+    private AppNav createDrawerNavigation() {
         AppNav nav = new AppNav();
 
         nav.addItem(new AppNavItem("Map", MapView.class, "la la-map"));
@@ -158,14 +77,114 @@ public class MainLayout extends AppLayout {
         return nav;
     }
 
-    private Footer createFooter() {
+    private Footer createDrawerFooter() {
         return new Footer();
     }
 
-    @Override
-    protected void afterNavigation() {
-        super.afterNavigation();
-        viewTitle.setText(getCurrentPageTitle());
+    private void createHeader() {
+        createDrawerToggle();
+        createViewTitle();
+        createBaseStationBadge();
+        createThemeSwitchButton();
+
+        setBaseStationBadgeTheme();
+        registerCommunicationListener();
+    }
+
+    private void createDrawerToggle() {
+        DrawerToggle toggle = new DrawerToggle();
+        toggle.getElement().setAttribute("aria-label", "Menu toggle");
+        addToNavbar(true, toggle);
+    }
+
+    private void createViewTitle() {
+        viewTitle.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
+        addToNavbar(true, viewTitle);
+    }
+
+    private void createBaseStationBadge() {
+        baseStationSpan.getElement().setAttribute("theme", "badge error");
+        baseStationSpan.setWidth("fit-content");
+        baseStationSpan.getStyle().set("position", "absolute");
+        baseStationSpan.getStyle().set("margin-left", "auto");
+        baseStationSpan.getStyle().set("margin-right", "auto");
+        baseStationSpan.getStyle().set("left", "0");
+        baseStationSpan.getStyle().set("right", "0");
+
+        addToNavbar(baseStationSpan);
+    }
+
+    private void createThemeSwitchButton() {
+        themeSwitchButton.setText("Dark Mode");
+        themeSwitchButton.addClickListener((ComponentEventListener<ClickEvent<Button>>) click -> {
+            ThemeList themeList = UI.getCurrent().getElement().getThemeList();
+            setDarkMode(!themeList.contains(Lumo.DARK));
+        });
+        themeSwitchButton.getStyle().set("margin-left", "auto");
+        themeSwitchButton.getStyle().set("margin-right", "16px");
+
+        addToNavbar(true, themeSwitchButton);
+    }
+
+    private void setDarkMode(boolean darkTheme) {
+        ThemeList themeList = UI.getCurrent().getElement().getThemeList();
+        if (darkTheme) {
+            themeList.add(Lumo.DARK);
+            themeSwitchButton.setIcon(VaadinIcon.SUN_O.create());
+            themeSwitchButton.setText("Light Mode");
+        } else {
+            themeList.remove(Lumo.DARK);
+            themeSwitchButton.setIcon(VaadinIcon.MOON_O.create());
+            themeSwitchButton.setText("Dark Mode");
+        }
+        setDarkModeCookie(darkTheme);
+    }
+
+    private void setDarkModeCookie(boolean darkTheme) {
+        Cookie cookie = getDarkModeCookie();
+        if (cookie == null) {
+            cookie = new Cookie("dark_theme", String.valueOf(darkTheme));
+        }
+        cookie.setValue(String.valueOf(darkTheme));
+        cookie.setPath(VaadinService.getCurrentRequest().getContextPath());
+        cookie.setMaxAge(Integer.MAX_VALUE);
+        VaadinService.getCurrentResponse().addCookie(cookie);
+    }
+
+    private Cookie getDarkModeCookie() {
+        Cookie[] cookies = VaadinService.getCurrentRequest().getCookies();
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals("dark_theme")) {
+                return cookie;
+            }
+        }
+        return null;
+    }
+
+    private void setBaseStationBadgeTheme() {
+        if (communication.isConnected()) {
+            baseStationSpan.getElement().setAttribute("theme", "badge success");
+            openConnection = true;
+        }
+    }
+
+    private void setTheme() {
+        Cookie cookieDarkTheme = getDarkModeCookie();
+        setDarkMode(cookieDarkTheme != null && Boolean.parseBoolean(cookieDarkTheme.getValue()));
+    }
+
+    private void registerCommunicationListener() {
+        communication.addOnConnectListener(() -> openConnection = true);
+        communication.addOnDisconnectListener(() -> openConnection = false);
+    }
+
+    private void registerPollListener() {
+        UI ui = UI.getCurrent();
+        ui.setPollInterval(1000);
+        ui.addPollListener((ComponentEventListener<PollEvent>) event ->
+                baseStationSpan
+                        .getElement()
+                        .setAttribute("theme", "badge " + (openConnection ? "success" : "error")));
     }
 
     private String getCurrentPageTitle() {
@@ -173,19 +192,9 @@ public class MainLayout extends AppLayout {
         return title == null ? "" : title.value();
     }
 
-    private Cookie getCookieByName(String name) {
-        // Fetch all cookies from the request
-        Cookie[] cookies = VaadinService.getCurrentRequest().getCookies();
-
-        // Iterate to find cookie by its name
-        for (Cookie cookie : cookies) {
-            if (name.equals(cookie.getName())) {
-                return cookie;
-            }
-        }
-
-        return null;
+    @Override
+    protected void afterNavigation() {
+        super.afterNavigation();
+        viewTitle.setText(getCurrentPageTitle());
     }
-
-
 }

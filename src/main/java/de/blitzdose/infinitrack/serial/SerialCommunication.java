@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import de.blitzdose.infinitrack.serial.SerialCommunicationListener.*;
 
 @ApplicationScope
 @SpringComponent
@@ -53,54 +54,77 @@ public class SerialCommunication {
 
             @Override
             public void serialEvent(SerialPortEvent serialPortEvent) {
-                if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
-                    byte[] buffer = new byte[SerialCommunication.this.serialPort.bytesAvailable()];
-                    SerialCommunication.this.serialPort.readBytes(buffer, buffer.length);
-                    lastMsg += new String(buffer);
-
-                    int newLineIndex;
-                    do {
-                        newLineIndex = lastMsg.indexOf("\r\n");
-
-                        if (newLineIndex != -1) {
-                            String line = lastMsg.substring(0, newLineIndex);
-                            fullConsole = String.format("%s%s", fullConsole, line);
-
-                            Message message = Message.parseMessage(line);
-
-                            if (dataListener != null) {
-                                dataListener.dataReceived(message, fullConsole);
-                            }
-                            lastMsg = lastMsg.substring(newLineIndex+1);
-
-                            if (message.getType().equals(Message.TYPE_STATUS)) {
-                                if (message.getMsg().equals(Message.STATUS_READY_GLOBAL)) {
-                                    connectListener.forEach(ConnectListener::connect);
-                                    connected = true;
-                                }
-                            } else if (message.getType().equals(Message.TYPE_LORA_MSG)) {
-                                try {
-                                    JSONObject jsonObject = new JSONObject(message.getMsg());
-                                    Location location = Location.parsePayload(jsonObject.getString("payload"));
-                                    int rssi = jsonObject.getInt("rssi");
-                                    if (location != null) {
-                                        LoRaHeaderParser loRaHeaderParser = new LoRaHeaderParser(jsonObject.getString("header"));
-                                        String sourceAddress = loRaHeaderParser.getSourceAddressFormatted();
-
-                                        gpsUpdater.updateDevice(sourceAddress, location, rssi);
-                                    }
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-
-                                }
-                            }
-                        }
-                    } while (newLineIndex != -1);
-                } else if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_PORT_DISCONNECTED) {
-                    closeConnection();
-                }
+                handleSerialEvent(serialPortEvent);
             }
         });
+    }
+
+    private void handleSerialEvent(SerialPortEvent serialPortEvent) {
+        if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
+            handleSerialData();
+        } else if (serialPortEvent.getEventType() == SerialPort.LISTENING_EVENT_PORT_DISCONNECTED) {
+            closeConnection();
+        }
+    }
+
+    private void handleSerialData() {
+        readNewData();
+
+        int newLineIndex = lastMsg.indexOf("\r\n");
+        while (newLineIndex != -1) {
+            String line = getLine(newLineIndex);
+            fullConsole = String.format("%s%s", fullConsole, line);
+            Message message = Message.parseMessage(line);
+
+            notifyDataListener(message);
+
+            if (message.type().equals(Message.TYPE_STATUS)) {
+                if (message.msg().equals(Message.STATUS_READY_GLOBAL)) {
+                    notifyConnectListeners();
+                }
+            } else if (message.type().equals(Message.TYPE_LORA_MSG)) {
+                handleLoRaMessage(message);
+            }
+            newLineIndex = lastMsg.indexOf("\r\n");
+        }
+    }
+
+    private void handleLoRaMessage(Message message) {
+        try {
+            JSONObject jsonMsg = new JSONObject(message.msg());
+            Location location = Location.parsePayload(jsonMsg.getString("payload"));
+            int rssi = jsonMsg.getInt("rssi");
+            if (location != null) {
+                LoRaHeaderParser loRaHeaderParser = new LoRaHeaderParser(jsonMsg.getString("header"));
+                String sourceAddress = loRaHeaderParser.getSourceAddressFormatted();
+                gpsUpdater.updateDevice(sourceAddress, location, rssi);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void notifyConnectListeners() {
+        connectListener.forEach(ConnectListener::connect);
+        connected = true;
+    }
+
+    private void notifyDataListener(Message message) {
+        if (dataListener != null) {
+            dataListener.dataReceived(message, fullConsole);
+        }
+    }
+
+    private String getLine(int newLineIndex) {
+        String line = lastMsg.substring(0, newLineIndex);
+        lastMsg = lastMsg.substring(newLineIndex +1);
+        return line;
+    }
+
+    private void readNewData() {
+        byte[] buffer = new byte[SerialCommunication.this.serialPort.bytesAvailable()];
+        SerialCommunication.this.serialPort.readBytes(buffer, buffer.length);
+        lastMsg += new String(buffer);
     }
 
     public boolean isInitialized() {
@@ -137,9 +161,9 @@ public class SerialCommunication {
     }
 
     public void closeConnection() {
-        SerialCommunication.this.serialPort.removeDataListener();
-        SerialCommunication.this.fullConsole = "";
-        SerialCommunication.this.lastMsg = "";
+        serialPort.removeDataListener();
+        fullConsole = "";
+        lastMsg = "";
         if (disconnectListener != null) {
             disconnectListener.forEach(DisconnectListener::disconnect);
         }
@@ -172,23 +196,4 @@ public class SerialCommunication {
     public void addOnDisconnectListener(DisconnectListener disconnectListener) {
         this.disconnectListener.add(disconnectListener);
     }
-
-    @ApplicationScope
-    @SpringComponent
-    public interface DataListener {
-        void dataReceived(Message msg, String console);
-    }
-
-    @ApplicationScope
-    @SpringComponent
-    public interface DisconnectListener {
-        void disconnect();
-    }
-
-    @ApplicationScope
-    @SpringComponent
-    public interface ConnectListener {
-        void connect();
-    }
-
 }
