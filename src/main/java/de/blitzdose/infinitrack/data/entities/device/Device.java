@@ -16,6 +16,7 @@ public class Device extends AbstractEntity {
     private String name;
     private double signal;
     private String status;
+    private String sapUUID;
     @OneToMany
     private List<Location> locationHistory = new ArrayList<>();
     @OneToOne
@@ -82,5 +83,13 @@ public class Device extends AbstractEntity {
 
     public void setLastLocation(Location lastLocation) {
         this.lastLocation = lastLocation;
+    }
+
+    public String getSapUUID() {
+        return sapUUID;
+    }
+
+    public void setSapUUID(String sapUUID) {
+        this.sapUUID = sapUUID;
     }
 }

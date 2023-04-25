@@ -40,6 +40,7 @@ public class GPSUpdater {
             Location location1 = locationService.update(location);
             if (recording) {
                 device.addToLocationHistory(location1);
+                SAPHandler.sendLocationData(device.getSapUUID(), location1);
             } else {
                 device.setLastLocation(location1);
             }
@@ -56,7 +57,7 @@ public class GPSUpdater {
             public void run() {
                 List<Device> deviceList = deviceService.listWithLocations();
                 deviceList.stream()
-                        .filter(device -> device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis())
+                        .filter(device -> device.getLastLocation() != null && device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis())
                         .forEach(device -> {
                             device.setStatus("Offline");
                             deviceService.update(device);

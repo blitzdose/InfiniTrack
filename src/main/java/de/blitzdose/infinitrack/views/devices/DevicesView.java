@@ -259,6 +259,7 @@ public class DevicesView extends Div {
             Device newDevice = optionalDevice.get();
             newDevice.setName(device.getName());
             newDevice.setColor(device.getColor());
+            newDevice.setSapUUID(device.getSapUUID());
             device = newDevice;
         }
         deviceService.update(device);

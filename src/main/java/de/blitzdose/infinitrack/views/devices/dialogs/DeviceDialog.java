@@ -31,6 +31,7 @@ public class DeviceDialog {
     private final VerticalLayout dialogLayout = new VerticalLayout();
     private final TextField nameTextField = new TextField("Name");
     private final TextField colorTextField = new TextField("Color");
+    private final TextField sapTextField = new TextField("SAP Device ID");
     private final Icon colorIcon = new Icon(VaadinIcon.CIRCLE);
     
     public DeviceDialog(Device device) {
@@ -52,6 +53,7 @@ public class DeviceDialog {
         Button saveButton = new Button("Save", e -> {
             device.setName(nameTextField.getValue());
             device.setColor(colorTextField.getValue());
+            device.setSapUUID(sapTextField.getValue().trim().isEmpty() ? null : sapTextField.getValue().trim());
             if (saveListener != null) {
                 saveListener.onSave(DeviceDialog.this, device);
             }
@@ -103,6 +105,7 @@ public class DeviceDialog {
         createStatusSpan();
         createNameTextField();
         createColorLayout();
+        createSAPIDTextField();
         createAddressTextField();
         createLastLocationLayout();
 
@@ -140,6 +143,11 @@ public class DeviceDialog {
         addressTextField.setReadOnly(true);
         addressTextField.setValue(device.getAddress());
         dialogLayout.add(addressTextField);
+    }
+
+    private void createSAPIDTextField() {
+        sapTextField.setValue(device.getSapUUID() == null ? "" : device.getSapUUID());
+        dialogLayout.add(sapTextField);
     }
 
     private void createColorLayout() {

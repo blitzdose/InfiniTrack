@@ -94,6 +94,11 @@ public class GPSParser {
         return getFloatFromBytes(speedBytes);
     }
 
+    public float getCourse() throws IOException {
+        byte[] courseBytes = payloadStream.readNBytes(4);
+        return getFloatFromBytes(courseBytes);
+    }
+
     public short getSatelliteCount() throws IOException {
         byte[] satellitesBytes = payloadStream.readNBytes(1);
         return getShortFromBytes(satellitesBytes);

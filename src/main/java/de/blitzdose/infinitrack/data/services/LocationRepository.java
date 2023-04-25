@@ -10,6 +10,6 @@ public interface LocationRepository extends
         JpaSpecificationExecutor<Location> {
     @Query("""
             select l from Location l
-            where l.timestamp = ?1 and l.latitude = ?2 and l.longitude = ?3 and l.speed = ?4 and l.satelliteCount = ?5 and l.altitude = ?6 and l.pdop = ?7""")
-    Location findByAllAttributes(long timestamp, float latitude, float longitude, float speed, short satelliteCount, float altitude, float pdop);
+            where l.timestamp = ?1 and l.latitude = ?2 and l.longitude = ?3 and l.speed = ?4 and l.course = ?5 and l.satelliteCount = ?6 and l.altitude = ?7 and l.pdop = ?8""")
+    Location findByAllAttributes(long timestamp, float latitude, float longitude, float speed, float course, short satelliteCount, float altitude, float pdop);
 }

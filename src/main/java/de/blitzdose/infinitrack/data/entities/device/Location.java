@@ -20,6 +20,7 @@ public class Location {
     private float latitude;
     private float longitude;
     private float speed;
+    private float course;
     private short satelliteCount;
     private float altitude;
     private float pdop;
@@ -38,6 +39,7 @@ public class Location {
         location.setLatitude(gpsParser.getLatitude());
         location.setLongitude(gpsParser.getLongitude());
         location.setSpeed(gpsParser.getSpeed());
+        location.setCourse(gpsParser.getCourse());
         location.setSatelliteCount(gpsParser.getSatelliteCount());
         location.setAltitude(gpsParser.getAltitude());
         location.setPdop(gpsParser.getPdop());
@@ -146,5 +148,13 @@ public class Location {
                 satelliteCount == other.satelliteCount &&
                 altitude == other.altitude &&
                 pdop == other.pdop;
+    }
+
+    public float getCourse() {
+        return course;
+    }
+
+    public void setCourse(float course) {
+        this.course = course;
     }
 }

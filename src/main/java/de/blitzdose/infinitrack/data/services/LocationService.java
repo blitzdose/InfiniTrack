@@ -28,6 +28,7 @@ public class LocationService  {
                 entity.getLatitude(),
                 entity.getLongitude(),
                 entity.getSpeed(),
+                entity.getCourse(),
                 entity.getSatelliteCount(),
                 entity.getAltitude(),
                 entity.getPdop());
