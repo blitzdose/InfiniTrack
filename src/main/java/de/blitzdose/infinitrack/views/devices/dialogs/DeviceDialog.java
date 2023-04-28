@@ -180,7 +180,7 @@ public class DeviceDialog {
     }
 
     private void createColorTextField() {
-        colorTextField.setValue(device.getColor());
+        colorTextField.setValue(device.getColor() != null ? device.getColor() : "#000000");
         colorTextField.getStyle().set("flex-grow", "1");
         colorTextField.addValueChangeListener(event -> colorIcon.setColor(event.getValue()));
         colorTextField.setValueChangeMode(ValueChangeMode.EAGER);

@@ -291,6 +291,8 @@ public class MapView extends VerticalLayout {
                 cardElements.address(),
                 cardElements.name(),
                 cardElements.signal(),
+                cardElements.satelliteCount(),
+                cardElements.speed(),
                 cardElements.buttonWrapper(),
                 cardElements.progressBar()
         );
@@ -301,15 +303,19 @@ public class MapView extends VerticalLayout {
         Span address = createAddressSpan(device);
         Span name = createNameSpan(device);
         Span signal = createSignalSpan(device);
+        Span satelliteCount = createSatelliteCountSpan(device);
+        Span speedSpan = createSpeedSpan(device);
         FileDownloadWrapper buttonWrapper = createExportButton(device);
         ProgressBar progressBar = createProgressbar(device);
 
-        return new CardElements(address, name, signal, buttonWrapper, progressBar);
+        return new CardElements(address, name, signal, satelliteCount, speedSpan, buttonWrapper, progressBar);
     }
 
     private record CardElements(Span address,
                                 Span name,
                                 Span signal,
+                                Span satelliteCount,
+                                Span speed,
                                 FileDownloadWrapper buttonWrapper,
                                 ProgressBar progressBar) {
     }
@@ -331,6 +337,18 @@ public class MapView extends VerticalLayout {
         Span signal = new Span("RSSI: " + device.getSignal());
         signal.addClassNames(TextColor.SECONDARY);
         return signal;
+    }
+
+    private Span createSatelliteCountSpan(Device device) {
+        Span satelliteCount = new Span("Satellites: " + device.getLastLocation().getSatelliteCount());
+        satelliteCount.addClassNames(TextColor.SECONDARY);
+        return satelliteCount;
+    }
+
+    private Span createSpeedSpan(Device device) {
+        Span speed = new Span("Speed: " + device.getLastLocation().getSpeed() + "km/h");
+        speed.addClassNames(TextColor.SECONDARY);
+        return speed;
     }
 
     private FileDownloadWrapper createExportButton(Device device) {
