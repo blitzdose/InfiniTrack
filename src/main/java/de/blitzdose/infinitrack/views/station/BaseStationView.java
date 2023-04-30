@@ -105,7 +105,6 @@ public class BaseStationView extends Div {
         calculateSelectWidth(select, ports);
 
         if (communication.isInitialized()) {
-            System.out.println("set port");
             Optional<SerialPort> serialPortOptional = ports.stream()
                     .filter(serialPort -> serialPort.
                             getPortLocation().

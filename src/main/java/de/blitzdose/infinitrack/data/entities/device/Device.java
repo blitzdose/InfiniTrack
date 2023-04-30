@@ -16,7 +16,9 @@ public class Device extends AbstractEntity {
     private String name;
     private double signal;
     private String status;
+    private String statusGPS;
     private String sapUUID;
+    private short chargeLevel;
     @OneToMany
     private List<Location> locationHistory = new ArrayList<>();
     @OneToOne
@@ -91,5 +93,21 @@ public class Device extends AbstractEntity {
 
     public void setSapUUID(String sapUUID) {
         this.sapUUID = sapUUID;
+    }
+
+    public short getChargeLevel() {
+        return chargeLevel;
+    }
+
+    public void setChargeLevel(short chargeLevel) {
+        this.chargeLevel = chargeLevel;
+    }
+
+    public String getStatusGPS() {
+        return statusGPS;
+    }
+
+    public void setStatusGPS(String statusGPS) {
+        this.statusGPS = statusGPS;
     }
 }

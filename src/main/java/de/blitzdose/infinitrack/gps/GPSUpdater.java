@@ -9,10 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.annotation.ApplicationScope;
 
 import javax.transaction.Transactional;
-import java.util.List;
-import java.util.Optional;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 @ApplicationScope
 @SpringComponent
@@ -23,6 +20,8 @@ public class GPSUpdater {
 
     private boolean recording = false;
 
+    private final Map<Long, Long> lastUpdate = new HashMap<>();
+
     public GPSUpdater(@Autowired DeviceService deviceService, @Autowired LocationService locationService) {
         this.deviceService = deviceService;
         this.locationService = locationService;
@@ -31,22 +30,27 @@ public class GPSUpdater {
 
     @Transactional
     public void updateDevice(String address, Location location, int rssi) {
-        if ((location.getLatitude() == 0 && location.getLongitude() == 0)) {
-            return;
-        }
         Optional<Device> deviceOptional = deviceService.getByAddress(address);
         if (deviceOptional.isPresent()) {
             Device device = deviceOptional.get();
-            Location location1 = locationService.update(location);
-            if (recording) {
-                device.addToLocationHistory(location1);
-                SAPHandler.sendLocationData(device.getSapUUID(), location1);
-            } else {
-                device.setLastLocation(location1);
-            }
+            device.setChargeLevel(location.getChargeLevel());
             device.setSignal(rssi);
             device.setStatus("Connected");
+
+            if ((location.getLatitude() != 0 || location.getLongitude() != 0)) {
+                Location location1 = locationService.update(location);
+                if (recording) {
+                    device.addToLocationHistory(location1);
+                    SAPHandler.sendLocationData(device.getSapUUID(), location1);
+                } else {
+                    device.setLastLocation(location1);
+                }
+                if (location.getLatitude() != 0 || location.getLongitude() != 0) {
+                    device.setStatusGPS("Connected");
+                }
+            }
             deviceService.update(device);
+            lastUpdate.put(device.getId(), System.currentTimeMillis());
         }
     }
 
@@ -55,11 +59,12 @@ public class GPSUpdater {
             @Override
             @Transactional
             public void run() {
-                List<Device> deviceList = deviceService.listWithLocations();
+                List<Device> deviceList = deviceService.list();
                 deviceList.stream()
-                        .filter(device -> device.getLastLocation() != null && device.getLastLocation().getTimestamp() + 30000 < System.currentTimeMillis())
+                        .filter(device -> !lastUpdate.containsKey(device.getId()) || lastUpdate.get(device.getId()) + 30000 < System.currentTimeMillis())
                         .forEach(device -> {
                             device.setStatus("Offline");
+                            device.setStatusGPS("Offline");
                             deviceService.update(device);
                         });
             }

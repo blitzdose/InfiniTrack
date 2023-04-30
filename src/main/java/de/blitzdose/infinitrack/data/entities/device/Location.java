@@ -24,6 +24,7 @@ public class Location {
     private short satelliteCount;
     private float altitude;
     private float pdop;
+    private short chargeLevel;
 
     public static Location parsePayload(String payloadHex) throws IOException {
         byte[] payload = HexFormat.of().parseHex(payloadHex);
@@ -43,6 +44,7 @@ public class Location {
         location.setSatelliteCount(gpsParser.getSatelliteCount());
         location.setAltitude(gpsParser.getAltitude());
         location.setPdop(gpsParser.getPdop());
+        location.setChargeLevel(gpsParser.getChargeLevel());
 
         return location;
     }
@@ -156,5 +158,13 @@ public class Location {
 
     public void setCourse(float course) {
         this.course = course;
+    }
+
+    public short getChargeLevel() {
+        return chargeLevel;
+    }
+
+    public void setChargeLevel(short chargeLevel) {
+        this.chargeLevel = chargeLevel;
     }
 }

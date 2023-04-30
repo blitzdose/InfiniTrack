@@ -113,4 +113,9 @@ public class GPSParser {
         byte[] pdopBytes = payloadStream.readNBytes(4);
         return getFloatFromBytes(pdopBytes);
     }
+
+    public short getChargeLevel() throws IOException {
+        byte[] chargeLevelBytes = payloadStream.readNBytes(1);
+        return getShortFromBytes(chargeLevelBytes);
+    }
 }

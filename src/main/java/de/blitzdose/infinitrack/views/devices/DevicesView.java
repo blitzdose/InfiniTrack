@@ -28,6 +28,7 @@ import com.vaadin.flow.data.selection.SelectionListener;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.theme.lumo.LumoIcon;
 import de.blitzdose.infinitrack.components.notification.ErrorNotification;
 import de.blitzdose.infinitrack.components.notification.SuccessNotification;
 import de.blitzdose.infinitrack.data.entities.BleDevice;
@@ -59,6 +60,7 @@ public class DevicesView extends Div {
 
     List<Device> devices;
 
+    private final Button reloadButton = new Button(LumoIcon.RELOAD.create());
     private final TextField searchField = new TextField();
     private final Button addDeviceButton = new Button("Add Device", new Icon(VaadinIcon.PLUS));
 
@@ -75,14 +77,16 @@ public class DevicesView extends Div {
 
     private void createView() {
         createGrid();
-        createSearchField();
 
+        createReloadButton();
+        createSearchField();
         createAddDeviceButton();
+
         createLayout();
     }
 
     private void createLayout() {
-        HorizontalLayout horizontalLayout = new HorizontalLayout(searchField, addDeviceButton);
+        HorizontalLayout horizontalLayout = new HorizontalLayout(reloadButton, searchField, addDeviceButton);
         horizontalLayout.setWidth("100%");
 
         VerticalLayout layout = new VerticalLayout(horizontalLayout, grid);
@@ -213,6 +217,12 @@ public class DevicesView extends Div {
         });
     }
 
+    private void createReloadButton() {
+        reloadButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        reloadButton.getElement().setAttribute("aria-label", "Reload");
+        reloadButton.addClickListener((ComponentEventListener<ClickEvent<Button>>) event -> refreshGrid());
+    }
+
     private void createSearchField() {
         searchField.setWidth("100%");
         searchField.setPlaceholder("Search");
@@ -283,6 +293,8 @@ public class DevicesView extends Div {
         createColorColumn();
         createNameColumn();
         createSignalColumn();
+        createChargeLevelColumn();
+        createStatusGPSColumn();
         createStatusColumn();
     }
 
@@ -318,6 +330,21 @@ public class DevicesView extends Div {
                 .setComparator(Device::getSignal).setHeader("Signal");
     }
 
+    private void createChargeLevelColumn() {
+        grid.addColumn(new NumberRenderer<>(Device::getChargeLevel, "%d %%"))
+                .setHeader("Battery")
+                .setFlexGrow(0);
+    }
+
+    private void createStatusGPSColumn() {
+        grid.addColumn(new ComponentRenderer<>(device -> {
+            Span span = new Span();
+            span.setText(device.getStatusGPS());
+            span.getElement().setAttribute("theme", "badge " + (device.getStatusGPS().equalsIgnoreCase("connected") ? "success" : "error"));
+            return span;
+        })).setComparator(Device::getStatusGPS).setHeader("GPS Status");
+    }
+
     private void createStatusColumn() {
         grid.addColumn(new ComponentRenderer<>(device -> {
             Span span = new Span();
@@ -337,6 +364,7 @@ public class DevicesView extends Div {
         c.setAddress(address);
         c.setColor("#000000");
         c.setStatus("Offline");
+        c.setStatusGPS("Offline");
 
         deviceService.update(c);
 

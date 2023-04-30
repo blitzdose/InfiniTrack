@@ -206,7 +206,7 @@ public class MapView extends VerticalLayout {
         filteredDevices = devices.stream()
                 .filter(device -> (device.getName().toLowerCase().contains(filter)
                         || device.getAddress().toLowerCase().contains(filter)) 
-                        && !device.getStatus().equals("Offline"))
+                        && !device.getStatusGPS().equals("Offline"))
                 .collect(Collectors.toList());
 
         removeAllMapComponents();
