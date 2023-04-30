@@ -21,6 +21,7 @@ public class GPSUpdater {
     private boolean recording = false;
 
     private final Map<Long, Long> lastUpdate = new HashMap<>();
+    private final Map<Long, Long> lastUpdateGPS = new HashMap<>();
 
     public GPSUpdater(@Autowired DeviceService deviceService, @Autowired LocationService locationService) {
         this.deviceService = deviceService;
@@ -47,6 +48,7 @@ public class GPSUpdater {
                 }
                 if (location.getLatitude() != 0 || location.getLongitude() != 0) {
                     device.setStatusGPS("Connected");
+                    lastUpdateGPS.put(device.getId(), System.currentTimeMillis());
                 }
             }
             deviceService.update(device);
@@ -64,6 +66,14 @@ public class GPSUpdater {
                         .filter(device -> !lastUpdate.containsKey(device.getId()) || lastUpdate.get(device.getId()) + 30000 < System.currentTimeMillis())
                         .forEach(device -> {
                             device.setStatus("Offline");
+                            device.setStatusGPS("Offline");
+                            deviceService.update(device);
+                        });
+
+                deviceList = deviceService.list();
+                deviceList.stream()
+                        .filter(device -> !lastUpdateGPS.containsKey(device.getId()) || lastUpdateGPS.get(device.getId()) + 30000 < System.currentTimeMillis())
+                        .forEach(device -> {
                             device.setStatusGPS("Offline");
                             deviceService.update(device);
                         });
