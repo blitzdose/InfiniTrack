@@ -247,7 +247,7 @@ public class MapView extends VerticalLayout {
 
         LPolyline lPolyline = new LPolyline(lPoints);
         lPolyline.setStrokeColor(color);
-        lPolyline.setStrokeWeight(1);
+        lPolyline.setStrokeWeight(2);
 
         lmap.addLComponents(lPolyline);
     }

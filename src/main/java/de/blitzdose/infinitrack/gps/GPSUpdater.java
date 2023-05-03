@@ -38,7 +38,10 @@ public class GPSUpdater {
             device.setSignal(rssi);
             device.setStatus("Connected");
 
-            if ((location.getLatitude() != 0 || location.getLongitude() != 0)) {
+            if ((location.getLatitude() != 0 && location.getLongitude() != 0) &&
+                    (location.getLatitude() <= 180 && location.getLongitude() >= -180) &&
+                    (location.getLongitude() <= 180 && location.getLongitude() >= -180)) {
+
                 Location location1 = locationService.update(location);
                 if (recording) {
                     device.addToLocationHistory(location1);
@@ -50,6 +53,7 @@ public class GPSUpdater {
                     device.setStatusGPS("Connected");
                     lastUpdateGPS.put(device.getId(), System.currentTimeMillis());
                 }
+
             }
             deviceService.update(device);
             lastUpdate.put(device.getId(), System.currentTimeMillis());
