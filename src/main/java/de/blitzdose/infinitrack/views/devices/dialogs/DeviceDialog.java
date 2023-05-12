@@ -15,10 +15,17 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import de.blitzdose.infinitrack.components.notification.ErrorNotification;
 import de.blitzdose.infinitrack.data.entities.device.Device;
+import org.json.JSONObject;
 import org.vaadin.olli.ClipboardHelper;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 public class DeviceDialog {
     
@@ -31,7 +38,10 @@ public class DeviceDialog {
     private final VerticalLayout dialogLayout = new VerticalLayout();
     private final TextField nameTextField = new TextField("Name");
     private final TextField colorTextField = new TextField("Color");
-    private final TextField sapTextField = new TextField("SAP Device ID");
+    private final Button addSapButton = new Button("Connect to SAP Sailing");
+    private final TextField sapIDTextField = new TextField("SAP ID");
+    private JSONObject requestObject = null;
+    private String sapUrl = "";
     private final Icon colorIcon = new Icon(VaadinIcon.CIRCLE);
     
     public DeviceDialog(Device device) {
@@ -50,10 +60,31 @@ public class DeviceDialog {
     }
 
     private void createSaveButton() {
-        Button saveButton = new Button("Save", e -> {
+        Button saveButton = new Button("Save", click -> {
+
+            if (requestObject != null) {
+                try {
+                    HttpClient httpClient = HttpClient.newHttpClient();
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(sapUrl))
+                            .POST(HttpRequest.BodyPublishers.ofString(requestObject.toString()))
+                            .build();
+
+                    HttpResponse<String> response = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).get();
+
+                    if (response.statusCode() != 200) {
+                        new ErrorNotification().setText("Error connecting to SAP. Please try again.").open();
+                        sapIDTextField.setValue("");
+                    }
+                } catch (InterruptedException | ExecutionException | IllegalArgumentException ignored) {
+                    new ErrorNotification().setText("Error connecting to SAP. Please try again.").open();
+                    sapIDTextField.setValue("");
+                }
+            }
+
             device.setName(nameTextField.getValue());
             device.setColor(colorTextField.getValue());
-            device.setSapUUID(sapTextField.getValue().trim().isEmpty() ? null : sapTextField.getValue().trim());
+            device.setSapUUID(sapIDTextField.getValue().isEmpty() ? null : sapIDTextField.getValue());
             if (saveListener != null) {
                 saveListener.onSave(DeviceDialog.this, device);
             }
@@ -105,7 +136,7 @@ public class DeviceDialog {
         createStatusSpan();
         createNameTextField();
         createColorLayout();
-        createSAPIDTextField();
+        createAddSAPButton();
         createAddressTextField();
         createLastLocationLayout();
 
@@ -145,9 +176,24 @@ public class DeviceDialog {
         dialogLayout.add(addressTextField);
     }
 
-    private void createSAPIDTextField() {
-        sapTextField.setValue(device.getSapUUID() == null ? "" : device.getSapUUID());
-        dialogLayout.add(sapTextField);
+    private void createAddSAPButton() {
+        sapIDTextField.setReadOnly(true);
+        sapIDTextField.setWidthFull();
+        sapIDTextField.setValue(device.getSapUUID() == null ? "" : device.getSapUUID());
+
+        addSapButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        addSapButton.setWidthFull();
+        addSapButton.addClickListener((ComponentEventListener<ClickEvent<Button>>) event -> new AddSAPConnectionDialog()
+                .setOnCancelListener(AddSAPConnectionDialog::close)
+                .setOnSaveListener((dialog, requestPayload, sapUrl) -> {
+                    dialog.close();
+                    sapIDTextField.setValue(requestPayload.getString("deviceUuid"));
+                    requestObject = requestPayload;
+                    DeviceDialog.this.sapUrl = sapUrl;
+                }).show());
+
+        dialogLayout.add(sapIDTextField);
+        dialogLayout.add(addSapButton);
     }
 
     private void createColorLayout() {

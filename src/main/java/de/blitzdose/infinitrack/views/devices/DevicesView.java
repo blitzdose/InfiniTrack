@@ -257,6 +257,7 @@ public class DevicesView extends Div {
         new DeviceDialog(clickedDevice).setSaveListener((deviceDialog, device) -> {
             saveDevice(device);
             deviceDialog.close();
+            new SuccessNotification().setText("Device saved").open();
         }).setDeleteListener((deviceDialog, device) -> {
             deleteDevice(device);
             deviceDialog.close();
