@@ -211,6 +211,82 @@ public class MapView extends VerticalLayout {
 
         removeAllMapComponents();
 
+        Device device = new Device();
+        device.setChargeLevel((short)10);
+        device.setColor("#003049");
+        device.setName("Tracker 01");
+        device.setSignal(-95);
+        device.setAddress("aa:bb:cc:dd:ee:ff");
+        Location location = new Location();
+        location.setTimestamp(System.currentTimeMillis());
+        location.setCourse(0);
+        location.setPdop(6.47f);
+        location.setSpeed(5.14f);
+        location.setAltitude(310);
+        location.setSatelliteCount((short)6);
+        location.setChargeLevel((short)10);
+        location.setLatitude(49.016842f);
+        location.setLongitude(8.399511f);
+        device.setLastLocation(location);
+        this.filteredDevices.add(device);
+
+        Device device1 = new Device();
+        device1.setChargeLevel((short)10);
+        device1.setColor("#d62828");
+        device1.setName("Tracker 02");
+        device1.setSignal(-81);
+        device1.setAddress("ff:aa:bb:dd:cc:ee");
+        Location location1 = new Location();
+        location1.setTimestamp(System.currentTimeMillis());
+        location1.setCourse(0);
+        location1.setPdop(2.71f);
+        location1.setSpeed(10.47f);
+        location1.setAltitude(310);
+        location1.setSatelliteCount((short)5);
+        location1.setChargeLevel((short)10);
+        location1.setLatitude(49.018418f);
+        location1.setLongitude(8.404919f);
+        device1.setLastLocation(location1);
+        this.filteredDevices.add(device1);
+
+        Device device2 = new Device();
+        device2.setChargeLevel((short)10);
+        device2.setColor("#f77f00");
+        device2.setName("Tracker 03");
+        device2.setSignal(-98);
+        device2.setAddress("bb:cc:ff:ee:dd:aa");
+        Location location2 = new Location();
+        location2.setTimestamp(System.currentTimeMillis());
+        location2.setCourse(0);
+        location2.setPdop(2.71f);
+        location2.setSpeed(8.74f);
+        location2.setAltitude(310);
+        location2.setSatelliteCount((short)4);
+        location2.setChargeLevel((short)10);
+        location2.setLatitude(49.017518f);
+        location2.setLongitude(8.418652f);
+        device2.setLastLocation(location2);
+        this.filteredDevices.add(device2);
+
+        Device device3 = new Device();
+        device3.setChargeLevel((short)10);
+        device3.setColor("#1b998b");
+        device3.setName("Tracker 04");
+        device3.setSignal(-85);
+        device3.setAddress("ff:aa:cc:dd:ee:bb");
+        Location location3 = new Location();
+        location3.setTimestamp(System.currentTimeMillis());
+        location3.setCourse(0);
+        location3.setPdop(2.71f);
+        location3.setSpeed(1.34f);
+        location3.setAltitude(310);
+        location3.setSatelliteCount((short)4);
+        location3.setChargeLevel((short)10);
+        location3.setLatitude(49.014647f);
+        location3.setLongitude(8.407303f);
+        device3.setLastLocation(location3);
+        this.filteredDevices.add(device3);
+
         this.filteredDevices.forEach(this::addDeviceToMap);
         updateCardList();
     }
