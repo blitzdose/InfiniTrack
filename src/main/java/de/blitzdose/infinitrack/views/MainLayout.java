@@ -64,7 +64,10 @@ public class MainLayout extends AppLayout {
     private Header createDrawerHeader() {
         H1 appName = new H1("InfiniTrack");
         appName.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
-        return new Header(appName);
+
+        Image image = new Image("icons/icon.png", "Icon");
+        image.setHeight("36px");
+        return new Header(image, appName);
     }
 
     private AppNav createDrawerNavigation() {
