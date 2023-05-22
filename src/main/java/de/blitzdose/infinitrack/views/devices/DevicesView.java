@@ -327,7 +327,7 @@ public class DevicesView extends Div {
     }
 
     private void createSignalColumn() {
-        grid.addColumn(new NumberRenderer<>(Device::getSignal, "%.2f dB", Locale.GERMANY))
+        grid.addColumn(new NumberRenderer<>(Device::getSignal, "%.2f", Locale.GERMANY))
                 .setComparator(Device::getSignal).setHeader("Signal");
     }
 
